@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ant Colony Simulator - Complete Colony Lifecycle</title>
+    <title>Ant Colony Simulator - Ultimate Advanced Sandbox</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -15,7 +15,9 @@
         .tool-btn { background: #1a1d24; border: 1px solid #364359; color: #94a3b6; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; transition: all 0.2s; }
         .tool-btn:hover { border-color: #45f3ff; color: #fff; }
         .tool-btn.active-tool { background: rgba(0, 243, 255, 0.15); border-color: #45f3ff; color: #45f3ff; box-shadow: 0 0 8px rgba(0, 243, 255, 0.3); }
-        .resource-display { font-family: 'Orbitron', sans-serif; font-weight: bold; color: #ffbd59; font-size: 0.95rem; margin-left: auto; margin-right: 25px; text-shadow: 0 0 5px rgba(255, 189, 89, 0.3); }
+        
+        .threat-tracker { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; color: #ff3333; display: flex; gap: 12px; background: rgba(255, 0, 0, 0.05); padding: 6px 12px; border: 1px dashed #ff3333; border-radius: 4px; margin-left: auto; margin-right: 20px; }
+        .resource-display { font-family: 'Orbitron', sans-serif; font-weight: bold; color: #ffbd59; font-size: 0.95rem; margin-right: 25px; text-shadow: 0 0 5px rgba(255, 189, 89, 0.3); }
 
         .pause-btn { background: #ff2a2a; border: 1px solid #ff4f4f; color: #fff; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; font-weight: bold; transition: all 0.2s ease; }
         .pause-btn.paused { background: #00ff55; border-color: #33ff77; color: #000; box-shadow: 0 0 10px rgba(0, 255, 85, 0.5); }
@@ -24,6 +26,7 @@
         #zoom-controls { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 15; }
         .zoom-btn { background: #121620; border: 2px solid #283545; color: #45f3ff; width: 40px; height: 40px; border-radius: 4px; cursor: pointer; font-size: 1.3rem; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
         .zoom-btn:hover { border-color: #ffbd59; background: #1a202c; }
+        .resize-btn { width: auto; height: 40px; padding: 0 10px; font-size: 0.75rem; letter-spacing: 1px; white-space: nowrap; }
         
         #controls-dashboard { background: #11141d; border-top: 2px solid #45f3ff; padding: 5px 15px; display: flex; gap: 10px; align-items: center; height: 135px; z-index: 10; }
         .pool-card { background: rgba(0, 0, 0, 0.4); border: 1px dashed #45f3ff; border-radius: 6px; padding: 6px; height: 115px; width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
@@ -48,7 +51,7 @@
         #instruction-tooltip { position: absolute; bottom: 15px; left: 20px; background: rgba(18, 22, 32, 0.85); border: 1px solid #2d3748; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-family: 'Orbitron', sans-serif; color: #94a3b6; pointer-events: none; z-index: 15; }
     </style>
     <script>
-        let currentZoomFactor = 0.85; let viewScrollOffsetX = 0; let viewScrollOffsetY = -150; let isGamePaused = false;
+        let currentZoomFactor = 0.85; let viewWidth = 800; let viewHeight = 600; let viewScrollOffsetX = 0; let viewScrollOffsetY = -150; let isGamePaused = false;
         window.adjustCameraZoom = function(amount) { currentZoomFactor = Math.max(0.3, Math.min(2.0, currentZoomFactor + amount)); };
         window.togglePauseState = function() {
             if (window.checkIfGameCurrentlyOver && window.checkIfGameCurrentlyOver()) return;
@@ -68,6 +71,11 @@
             <button id="tool-food_cell" class="tool-btn" onclick="window.setSelectTool('food_cell')">🍗 FOOD CELL (10)</button>
             <button id="tool-speed_cell" class="tool-btn" onclick="window.setSelectTool('speed_cell')">⚡ SPEED CELL (5)</button>
         </div>
+        <div class="threat-tracker">
+            <span>🐛 SMALLS LEFT: <span id="beetle-small-count">5</span></span>
+            <span>🪲 LARGES LEFT: <span id="beetle-large-count">10</span></span>
+            <span>👾 SUPERS LEFT: <span id="beetle-super-count">3</span></span>
+        </div>
         <div class="resource-display">🍂 FOOD: <span id="food-current-value">0</span> / <span id="food-max-value">300</span></div>
         <button id="btn-pause-toggle" class="pause-btn" onclick="window.togglePauseState()">PAUSE GAME</button>
     </div>
@@ -75,8 +83,9 @@
         <div id="zoom-controls">
             <button class="zoom-btn" onclick="window.adjustCameraZoom(0.15)">+</button>
             <button class="zoom-btn" onclick="window.adjustCameraZoom(-0.15)">−</button>
+            <button class="zoom-btn resize-btn" onclick="window.resizeCanvasToWindow()">RESIZE SCREEN</button>
         </div>
-        <div id="instruction-tooltip">🥚 Hatching costs 5/10 Food. Surviving ants regenerate health passively. Group workers can excavate!</div>
+        <div id="instruction-tooltip">🛡️ Defend the Queen! Overlapping threats trigger simultaneously. Defeat all beetles to win.</div>
         <canvas id="nestCanvas"></canvas>
         <div id="pause-screen-overlay"><div class="pause-text-banner">SIMULATION PAUSED</div></div>
         
@@ -86,6 +95,14 @@
                 <span style="font-size: 1.1rem; color: #94a3b6; letter-spacing: 2px;">GAME OVER</span>
             </div>
             <button style="background: #00ff55; border: 2px solid #33ff77; color: #000; padding: 12px 30px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 1.05rem; font-weight: bold; box-shadow: 0 0 15px rgba(0, 255, 85, 0.4); transition: all 0.2s;" onclick="window.restartGameEngine()">RETRY</button>
+        </div>
+
+        <div id="gamewin-screen-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(6, 28, 14, 0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 20;">
+            <div style="font-family: 'Orbitron', sans-serif; font-size: 2.2rem; color: #00ff66; font-weight: bold; letter-spacing: 4px; background: rgba(10, 11, 15, 0.95); padding: 25px 45px; border-radius: 6px; border: 2px solid #00ff66; box-shadow: 0 0 25px rgba(0, 255, 102, 0.5); text-align: center; margin-bottom: 25px;">
+                COLONY VICTORIOUS<br>
+                <span style="font-size: 1.1rem; color: #94a3b6; letter-spacing: 2px;">ALL THREATS ELIMINATED</span>
+            </div>
+            <button style="background: #00ff55; border: 2px solid #33ff77; color: #000; padding: 12px 30px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 1.05rem; font-weight: bold; box-shadow: 0 0 15px rgba(0, 255, 85, 0.4); transition: all 0.2s;" onclick="window.restartGameEngine()">PLAY AGAIN</button>
         </div>
     </div>
     <div id="controls-dashboard">
@@ -99,7 +116,7 @@
 
     <script>
         const canvas = document.getElementById('nestCanvas'); const ctx = canvas.getContext('2d');
-        let activelySelectedSquad = null; const viewWidth = 800; const viewHeight = 600; const hexRadius = 11;
+        let activelySelectedSquad = null; const hexRadius = 11;
         const totalGridRows = 45; const totalGridCols = 45; let hexMatrixGrid = [];
         let antEntitiesList = []; let insideBeetlesList = []; let markedMiningTasks = []; let isMouseButtonDown = false; let dragBrushMode = null;
         let groupRallyPoints = {1: null, 2: null, 3: null, 4: null, 5: null, 6: null};
@@ -112,7 +129,18 @@
 
         window.checkIfGameCurrentlyOver = function() { return isGameOver; };
 
-        // Generate Management Cards
+        // Dynamic View Resizing System Handler
+        window.resizeCanvasToWindow = function() {
+            const container = document.getElementById('game-viewport-container');
+            if (container) {
+                viewWidth = container.clientWidth || 800;
+                viewHeight = container.clientHeight || 600;
+                canvas.width = viewWidth;
+                canvas.height = viewHeight;
+            }
+        };
+
+        // Generate Management Cards Dynamically
         const dashboardRow = document.getElementById('squads-container-row');
         for (let idx = 1; idx <= 6; idx++) {
             let container = document.createElement('div');
@@ -174,9 +202,9 @@
             event.stopPropagation(); if (isGameOver) return;
             groupRallyPoints[squadNum] = null;
             document.getElementById(`clear-marker-btn-${squadNum}`).style.display = 'none';
-            antEntitiesList.forEach(ant => {
+            for (let ant of antEntitiesList) {
                 if (ant.group === squadNum) { ant.path = null; ant.state = 'idle'; ant.targetFoodRef = null; ant.targetEggCell = null; ant.carryingEgg = false; }
-            });
+            }
             refreshDashboardCounters();
         };
 
@@ -203,8 +231,8 @@
             let poolWkr = 0, poolWar = 0; let squadCounters = {};
             for(let i=1; i<=6; i++) squadCounters[i] = { worker: 0, warrior: 0 };
 
-            antEntitiesList.forEach(a => {
-                if (a.type === 'queen') return;
+            for (let a of antEntitiesList) {
+                if (a.type === 'queen') continue;
                 let activeGroup = a.pendingGroup ? a.pendingGroup : a.group;
                 if (activeGroup === 0) {
                     if (a.type === 'worker') poolWkr++;
@@ -213,7 +241,7 @@
                     if (a.type === 'worker') squadCounters[activeGroup].worker++;
                     if (a.type === 'warrior') squadCounters[activeGroup].warrior++;
                 }
-            });
+            }
 
             document.getElementById('pool-wkr-value').innerText = poolWkr;
             document.getElementById('pool-war-value').innerText = poolWar;
@@ -272,14 +300,16 @@
 
         function evaluateTilePassableState(r, c) {
             if (walkableStates.includes(hexMatrixGrid[r][c].state)) return true;
-            return looseFoodItems.some(f => f.row === r && f.col === c);
+            for (let f of looseFoodItems) { if (f.row === r && f.col === c) return true; }
+            return false;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            window.evaluateTilePassableState = evaluateTilePassableState;
-        });
+        // Beetles must strictly navigate down the paths that the ants have made (cannot cross un-excavated tiles)
+        function evaluateBeetlePassableState(r, c) {
+            return evaluateTilePassableState(r, c);
+        }
 
-        function computeHexGridPath(startR, startC, endR, endC) {
+        function computeHexGridPath(startR, startC, endR, endC, isBeetle = false) {
             if (startR === endR && startC === endC) return [];
             let queue = [[startR, startC]]; let parentMap = {}; parentMap[`${startR},${startC}`] = null; let pathFound = false;
 
@@ -288,7 +318,8 @@
                 let adjoin = getHexNeighbors(currR, currC);
                 for (let i = 0; i < adjoin.length; i++) {
                     let n = adjoin[i]; let nodeKey = `${n.row},${n.col}`;
-                    if (evaluateTilePassableState(n.row, n.col) && !(nodeKey in parentMap)) {
+                    let isPassable = isBeetle ? evaluateBeetlePassableState(n.row, n.col) : evaluateTilePassableState(n.row, n.col);
+                    if (isPassable && !(nodeKey in parentMap)) {
                         parentMap[nodeKey] = [currR, currC]; queue.push([n.row, n.col]);
                     }
                 }
@@ -303,20 +334,89 @@
             if (getHexNeighbors(targetR, targetC).some(n => n.row === startR && n.col === startC)) return [];
             let options = getHexNeighbors(targetR, targetC).filter(n => evaluateTilePassableState(n.row, n.col));
             let shortestLen = 999999; let idealPath = null;
-            options.forEach(n => {
+            for (let n of options) {
                 let p = computeHexGridPath(startR, startC, n.row, n.col);
                 if (p && p.length < shortestLen) { shortestLen = p.length; idealPath = p; }
-            });
+            }
             return idealPath;
         }
 
         function verifyExcavationAdjacencyConstraint(tile) {
             if (!tile || tile.state !== 'dirt') return false;
             let perimeter = getHexNeighbors(tile.row, tile.col);
-            return perimeter.some(n => evaluateTilePassableState(n.row, n.col)) || markedMiningTasks.some(t => perimeter.some(n => n.row === t.row && n.col === t.col));
+            if (perimeter.some(n => evaluateTilePassableState(n.row, n.col))) return true;
+            for (let t of markedMiningTasks) { if (perimeter.some(n => n.row === t.row && n.col === t.col)) return true; }
+            return false;
+        }
+
+        // Recursive Overlapping Cave-In Unearthing Chain Propagation Function (Mutual Exhumation)
+        function triggerBeetleCavernCollapse(startTile) {
+            let processQueue = [startTile];
+            let inspectedSet = new Set();
+
+            while (processQueue.length > 0) {
+                let cell = processQueue.shift();
+                let key = `${cell.row},${cell.col}`;
+                if (inspectedSet.has(key)) continue;
+                inspectedSet.add(key);
+
+                // Unearth block bounds completely
+                let clusterList = [cell, ...getHexNeighbors(cell.row, cell.col)];
+                for (let targetNode of clusterList) {
+                    let mapCell = hexMatrixGrid[targetNode.row][targetNode.col];
+                    
+                    if (mapCell.state === 'dirt' && (mapCell.hasBeetle || mapCell.isMysteryFood) && `${mapCell.row},${mapCell.col}` !== key) {
+                        processQueue.push(mapCell);
+                    }
+
+                    mapCell.state = 'open';
+                    markedMiningTasks = markedMiningTasks.filter(t => t.row !== mapCell.row || t.col !== mapCell.col);
+                }
+
+                // Spawn current node threats securely
+                if (cell.hasBeetle) {
+                    let bType = cell.hasBeetle;
+                    let isSuper = (bType === 'super_beetle');
+                    let isBig = (bType === 'big_beetle');
+                    let spawnCount = cell.isDoubleBeetle ? 2 : 1;
+
+                    for (let k = 0; k < spawnCount; k++) {
+                        let pickTile = clusterList[Math.floor(Math.random() * clusterList.length)];
+                        let tc = calculateHexUnscaledCenter(pickTile.row, pickTile.col);
+                        let maxHpVal = isSuper ? 4500 : (isBig ? 600 : 300);
+                        insideBeetlesList.push({
+                            id: 'beetle_unleashed_' + Math.floor(Math.random() * 999999) + '_' + cell.row + '_' + cell.col + '_' + k,
+                            type: bType, hp: maxHpVal, maxHp: maxHpVal,
+                            damage: isSuper ? 90 : (isBig ? 20 : 20), splash: (isSuper || isBig),
+                            x: tc.x + (Math.random() * 8 - 4), y: tc.y + (Math.random() * 8 - 4), row: pickTile.row, col: pickTile.col,
+                            angle: Math.random() * Math.PI * 2, speed: isSuper ? 0.12 : (isBig ? 0.15 : 0.22),
+                            attackTimer: 0, path: null, pathIndex: 0, lastAttackerId: null, lockedTargetId: null
+                        });
+                    }
+                    cell.hasBeetle = null;
+                    cell.isDoubleBeetle = false;
+                }
+
+                // Spawn current node food items cleanly if present
+                if (cell.isMysteryFood) {
+                    cell.isMysteryFood = false;
+                    let nuggetsCount = Math.floor(Math.random() * 11) + 5; 
+                    for(let j=0; j<nuggetsCount; j++) {
+                        let pickTile = clusterList[Math.floor(Math.random() * clusterList.length)];
+                        let tc = calculateHexUnscaledCenter(pickTile.row, pickTile.col);
+                        looseFoodItems.push({
+                            id: 'food_' + Math.floor(Math.random() * 999999) + '_' + cell.row + '_' + cell.col + '_' + j, row: pickTile.row, col: pickTile.col,
+                            x: tc.x + (Math.random() * 8 - 4), y: tc.y + (Math.random() * 8 - 4), assignedAntId: null
+                        });
+                    }
+                }
+            }
         }
 
         function initializeGameEngine() {
+            window.resizeCanvasToWindow();
+            window.addEventListener('resize', window.resizeCanvasToWindow);
+
             window.addEventListener('keydown', e => {
                 if (isGameOver) return;
                 if (e.key >= '1' && e.key <= '6') window.selectActiveSquadControl(parseInt(e.key));
@@ -334,17 +434,20 @@
                 if (cell.state === 'dirt') {
                     isMouseButtonDown = true; 
                     let matchIdx = markedMiningTasks.findIndex(t => t.row === cell.row && t.col === cell.col);
-                    if (matchIdx !== -1) { markedMiningTasks.splice(matchIdx, 1); dragBrushMode = 'dehighlight'; }
+                    if (matchIdx !== -1) { 
+                        markedMiningTasks.splice(matchIdx, 1); dragBrushMode = 'dehighlight'; 
+                        for (let a of antEntitiesList) {
+                            if (a.activeDigTarget === cell) { a.activeDigTarget = null; a.state = 'idle'; a.path = null; }
+                        }
+                    }
                     else if (verifyExcavationAdjacencyConstraint(cell)) { markedMiningTasks.push(cell); dragBrushMode = 'highlight'; }
                 } else if (evaluateTilePassableState(cell.row, cell.col)) {
                     if (activeConstructionTool) {
                         isMouseButtonDown = true;
                         if (cell.state === 'blueprint' && cell.blueprintType === activeConstructionTool) {
                             foodStockpile += toolCosts[activeConstructionTool]; updateFoodDisplayHUD();
-                            if (cell.assignedAntId) {
-                                let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
-                                if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
-                            }
+                            let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
+                            if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
                             cell.state = 'open'; cell.blueprintType = null; cell.assignedAntId = null;
                             dragBrushMode = 'erase_blueprint';
                         } else if (cell.state === 'open' || cell.state === 'outside_door') {
@@ -358,7 +461,7 @@
                     } else if (activelySelectedSquad) {
                         groupRallyPoints[activelySelectedSquad] = { row: cell.row, col: cell.col };
                         document.getElementById(`clear-marker-btn-${activelySelectedSquad}`).style.display = 'block';
-                        antEntitiesList.forEach(a => { if (a.group === activelySelectedSquad) { a.path = null; a.state = 'idle'; a.targetFoodRef = null; } });
+                        for (let a of antEntitiesList) { if (a.group === activelySelectedSquad) { a.path = null; a.state = 'idle'; a.targetFoodRef = null; } }
                     }
                 }
             });
@@ -374,6 +477,9 @@
                         if (verifyExcavationAdjacencyConstraint(cell)) { markedMiningTasks.push(cell); }
                     } else if (dragBrushMode === 'dehighlight' && matchIdx !== -1) {
                         markedMiningTasks.splice(matchIdx, 1);
+                        for (let a of antEntitiesList) {
+                            if (a.activeDigTarget === cell) { a.activeDigTarget = null; a.state = 'idle'; a.path = null; }
+                        }
                     }
                 } else if (activeConstructionTool) {
                     if (dragBrushMode === 'place_blueprint' && (cell.state === 'open' || cell.state === 'outside_door')) {
@@ -384,10 +490,8 @@
                         }
                     } else if (dragBrushMode === 'erase_blueprint' && cell.state === 'blueprint' && cell.blueprintType === activeConstructionTool) {
                         foodStockpile += toolCosts[activeConstructionTool]; updateFoodDisplayHUD();
-                        if (cell.assignedAntId) {
-                            let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
-                            if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
-                        }
+                        let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
+                        if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
                         cell.state = 'open'; cell.blueprintType = null; cell.assignedAntId = null;
                     }
                 }
@@ -397,28 +501,19 @@
             canvas.addEventListener('mouseup', stopDraggingHandler);
             canvas.addEventListener('mouseleave', stopDraggingHandler);
 
-            canvas.width = viewWidth; canvas.height = viewHeight;
-            
             resetAndBuildColonyState();
             runMainSimulationLoop();
         }
 
-        window.restartGameEngine = function() {
-            resetAndBuildColonyState();
-        };
+        function restartGameEngine() { resetAndBuildColonyState(); }
 
         function resetAndBuildColonyState() {
-            isGameOver = false;
-            foodStockpile = 0;
-            activelySelectedSquad = null;
-            activeConstructionTool = null;
-            markedMiningTasks = [];
-            looseFoodItems = [];
-            insideBeetlesList = [];
-            antEntitiesList = [];
+            isGameOver = false; foodStockpile = 0; activelySelectedSquad = null; activeConstructionTool = null;
+            markedMiningTasks = []; looseFoodItems = []; insideBeetlesList = []; antEntitiesList = [];
             groupRallyPoints = {1: null, 2: null, 3: null, 4: null, 5: null, 6: null};
 
             document.getElementById('gameover-screen-overlay').style.display = 'none';
+            document.getElementById('gamewin-screen-overlay').style.display = 'none';
             if (isGamePaused) {
                 isGamePaused = false;
                 document.getElementById('btn-pause-toggle').innerText = 'PAUSE GAME';
@@ -434,8 +529,8 @@
                     if (r === midRow && c === midCol) tileState = 'open';
                     hexMatrixGrid[r][c] = { 
                         row: r, col: c, state: tileState, blueprintType: null, 
-                        assignedAntId: null, buildProgress: 0, isMysteryFood: false, hasBeetle: null,
-                        eggStatus: 'none', eggProgress: 0, spawnedAntId: null, assignedEggCarrierId: null
+                        assignedAntId: null, buildProgress: 0, isMysteryFood: false, hasBeetle: null, isDoubleBeetle: false,
+                        eggStatus: 'none', spawnedAntId: null, assignedEggCarrierId: null
                     };
                 }
             }
@@ -454,6 +549,7 @@
                 let c = Math.floor(Math.random() * (totalGridCols - 6)) + 3;
                 if (hexMatrixGrid[r][c].state === 'dirt' && getHexDistance(r, c, midRow, midCol) > 6 && !hexMatrixGrid[r][c].hasBeetle) {
                     hexMatrixGrid[r][c].hasBeetle = 'little_beetle';
+                    if (Math.random() < 0.25) hexMatrixGrid[r][c].isDoubleBeetle = true;
                     littleBeetlesPlaced++;
                 }
             }
@@ -464,23 +560,35 @@
                 let c = Math.floor(Math.random() * (totalGridCols - 6)) + 3;
                 if (hexMatrixGrid[r][c].state === 'dirt' && getHexDistance(r, c, midRow, midCol) > 6 && !hexMatrixGrid[r][c].hasBeetle) {
                     hexMatrixGrid[r][c].hasBeetle = 'big_beetle';
+                    if (Math.random() < 0.25) hexMatrixGrid[r][c].isDoubleBeetle = true;
                     bigBeetlesPlaced++;
+                }
+            }
+
+            let superBeetlesPlaced = 0;
+            while (superBeetlesPlaced < 3) {
+                let r = Math.floor(Math.random() * (totalGridRows - 6)) + 3;
+                let c = Math.floor(Math.random() * (totalGridCols - 6)) + 3;
+                if (hexMatrixGrid[r][c].state === 'dirt' && getHexDistance(r, c, midRow, midCol) > 8 && !hexMatrixGrid[r][c].hasBeetle) {
+                    hexMatrixGrid[r][c].hasBeetle = 'super_beetle';
+                    if (Math.random() < 0.25) hexMatrixGrid[r][c].isDoubleBeetle = true;
+                    superBeetlesPlaced++;
                 }
             }
 
             for (let k = 0; k < 8; k++) {
                 let rR = Math.floor(Math.random() * (totalGridRows - 6)) + 3;
                 let rC = Math.floor(Math.random() * (totalGridCols - 6)) + 3;
-                if (hexMatrixGrid[rR][rC].state === 'dirt' && getHexDistance(rR, rC, midRow, midCol) > 5 && !hexMatrixGrid[rR][rC].hasBeetle) {
+                if (hexMatrixGrid[rR][rC].state === 'dirt' && getHexDistance(rR, rC, midRow, midCol) > 5) {
                     hexMatrixGrid[rR][rC].isMysteryFood = true;
                 }
             }
 
             let perimeterChamber = getHexNeighbors(midRow, midCol);
-            perimeterChamber.forEach(n => { hexMatrixGrid[n.row][n.col].state = 'food_cell'; });
+            for (let n of perimeterChamber) { hexMatrixGrid[n.row][n.col].state = 'food_cell'; }
 
             const qPos = calculateHexUnscaledCenter(midRow, midCol);
-            antEntitiesList.push({ id: 'queen', type: 'queen', row: midRow, col: midCol, x: qPos.x, y: qPos.y, angle: 0, group: 0, hp: 500, maxHp: 500 });
+            antEntitiesList.push({ id: 'queen', type: 'queen', row: midRow, col: midCol, x: qPos.x, y: qPos.y, angle: 0, group: 0, hp: 250, maxHp: 250 });
 
             for (let idx = 0; idx < 5; idx++) {
                 let cell = perimeterChamber[Math.min(idx, perimeterChamber.length - 1)];
@@ -498,10 +606,6 @@
                 document.getElementById(`clear-marker-btn-${i}`).style.display = 'none';
                 document.getElementById('squad-card-' + i).classList.remove('active-squad');
             }
-            ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell', 'tool-speed_cell'].forEach(t => {
-                const btn = document.getElementById(t); if (btn) btn.classList.remove('active-tool');
-            });
-
             refreshDashboardCounters();
         }
 
@@ -539,7 +643,7 @@
                 return;
             }
 
-            // Self-cleaning blackboard validation loop
+            let hiddenSmall = 0, hiddenLarge = 0, hiddenSuper = 0;
             for (let r = 0; r < totalGridRows; r++) {
                 for (let c = 0; c < totalGridCols; c++) {
                     let cell = hexMatrixGrid[r][c];
@@ -556,7 +660,6 @@
                         }
                     }
                     
-                    // 🥚 SPECIFICATION HOOK: Check and consume Food costs to hatch ants instantly from cells
                     if ((cell.state === 'worker_nest' || cell.state === 'warrior_nest') && cell.eggStatus === 'ready') {
                         if (!cell.spawnedAntId || !antEntitiesList.some(a => a.id === cell.spawnedAntId)) {
                             let hatchCost = (cell.state === 'worker_nest') ? 5 : 10;
@@ -567,30 +670,73 @@
                             }
                         }
                     }
+
+                    if (cell.state === 'dirt' && cell.hasBeetle) {
+                        if (cell.hasBeetle === 'little_beetle') hiddenSmall += cell.isDoubleBeetle ? 2 : 1;
+                        if (cell.hasBeetle === 'big_beetle') hiddenLarge += cell.isDoubleBeetle ? 2 : 1;
+                        if (cell.hasBeetle === 'super_beetle') hiddenSuper += cell.isDoubleBeetle ? 2 : 1;
+                    }
                 }
             }
 
-            looseFoodItems.forEach(food => {
+            let activeSmallCount = insideBeetlesList.filter(b => b.type === 'little_beetle').length;
+            let activeLargeCount = insideBeetlesList.filter(b => b.type === 'big_beetle').length;
+            let activeSuperCount = insideBeetlesList.filter(b => b.type === 'super_beetle').length;
+            let remainingSmall = hiddenSmall + activeSmallCount;
+            let remainingLarge = hiddenLarge + activeLargeCount;
+            let remainingSuper = hiddenSuper + activeSuperCount;
+
+            document.getElementById('beetle-small-count').innerText = remainingSmall;
+            document.getElementById('beetle-large-count').innerText = remainingLarge;
+            document.getElementById('beetle-super-count').innerText = remainingSuper;
+
+            if (remainingSmall === 0 && remainingLarge === 0 && remainingSuper === 0) {
+                isGameOver = true;
+                document.getElementById('gamewin-screen-overlay').style.display = 'flex';
+                return;
+            }
+
+            for (let food of looseFoodItems) {
                 if (food.assignedAntId) {
                     let worker = antEntitiesList.find(a => a.id === food.assignedAntId);
                     if (!worker || worker.state === 'fighting' || (worker.group > 0 && groupRallyPoints[worker.group] && getHexDistance(worker.row, worker.col, food.row, food.col) > 3) || worker.targetFoodRef !== food) {
                         food.assignedAntId = null;
                     }
                 }
-            });
+            }
 
-            // ⚔️ IN-NEST COMBAT AI & PATHS TRAVERSAL
-            insideBeetlesList.forEach((beetle) => {
+            // Beetle Behavior Loops
+            for (let beetle of insideBeetlesList) {
                 beetle.attackTimer++;
-
                 let combatTarget = null;
+                let isLittle = (beetle.type === 'little_beetle');
+                let isSuper = (beetle.type === 'super_beetle');
+                // Super bugs bite every 3 seconds (180 frames)
+                let attackCooldownLimit = isSuper ? 180 : 60;
 
                 if (beetle.lastAttackerId) {
-                    let activeAttacker = antEntitiesList.find(a => a.id === beetle.lastAttackerId && getHexDistance(beetle.row, beetle.col, a.row, a.col) <= 1.5);
+                    let activeAttacker = antEntitiesList.find(a => a.id === beetle.lastAttackerId && getHexDistance(beetle.row, beetle.col, a.row, a.col) <= (isSuper ? 2.5 : 1.5));
                     if (activeAttacker && activeAttacker.hp > 0) {
                         combatTarget = activeAttacker;
+                        if (isLittle) beetle.lockedTargetId = activeAttacker.id;
                     } else {
                         beetle.lastAttackerId = null; 
+                    }
+                }
+
+                if (isLittle && !combatTarget && beetle.lockedTargetId) {
+                    let currentTarget = antEntitiesList.find(a => a.id === beetle.lockedTargetId);
+                    if (currentTarget && currentTarget.hp > 0 && getHexDistance(beetle.row, beetle.col, currentTarget.row, currentTarget.col) <= 4) {
+                        combatTarget = currentTarget;
+                    } else {
+                        beetle.lockedTargetId = null;
+                    }
+                }
+
+                if (!combatTarget) {
+                    let queenNode = antEntitiesList.find(a => a.type === 'queen');
+                    if (queenNode && getHexDistance(beetle.row, beetle.col, queenNode.row, queenNode.col) <= (isSuper ? 2.2 : 1.5)) {
+                        combatTarget = queenNode;
                     }
                 }
 
@@ -607,6 +753,7 @@
                     if (proximateAnts.length > 0) {
                         proximateAnts.sort((a, b) => getHexDistance(beetle.row, beetle.col, a.row, a.col) - getHexDistance(beetle.row, beetle.col, b.row, b.col));
                         combatTarget = proximateAnts[0];
+                        if (isLittle) beetle.lockedTargetId = combatTarget.id;
                     }
                 }
 
@@ -614,23 +761,23 @@
                     beetle.angle = Math.atan2(combatTarget.y - beetle.y, combatTarget.x - beetle.x);
                     beetle.path = null; 
 
-                    if (beetle.attackTimer >= 60) {
+                    if (beetle.attackTimer >= attackCooldownLimit) {
                         beetle.attackTimer = 0;
                         if (beetle.splash) {
-                            let splashTargets = antEntitiesList.filter(a => getHexDistance(beetle.row, beetle.col, a.row, a.col) <= 1.5);
-                            splashTargets.forEach(a => { if(a.hp) a.hp -= beetle.damage; });
+                            let rangeFactor = isSuper ? 2.5 : 1.5;
+                            let splashTargets = antEntitiesList.filter(a => getHexDistance(beetle.row, beetle.col, a.row, a.col) <= rangeFactor);
+                            for (let a of splashTargets) { if(a.hp) a.hp -= beetle.damage; }
                         } else {
                             if (combatTarget.hp) combatTarget.hp -= beetle.damage;
                         }
                     }
                 } else {
-                    // 🌿 SPECIFICATION UNIMPEDED VECTORS: Calculate path strictly once or upon completion to prevent back-and-forth loops
                     if (!beetle.path || beetle.pathIndex >= beetle.path.length) {
-                        let route = computeHexGridPath(beetle.row, beetle.col, 22, 22);
+                        let route = computeHexGridPath(beetle.row, beetle.col, 22, 22, true);
                         if (route && route.length > 0) {
                             beetle.path = route; beetle.pathIndex = 0;
                         } else {
-                            let neighbors = getHexNeighbors(beetle.row, beetle.col).filter(n => evaluateTilePassableState(n.row, n.col));
+                            let neighbors = getHexNeighbors(beetle.row, beetle.col).filter(n => evaluateBeetlePassableState(n.row, n.col));
                             if (neighbors.length > 0) {
                                 let randomNNode = neighbors[Math.floor(Math.random() * neighbors.length)];
                                 beetle.path = [{ r: randomNNode.row, c: randomNNode.col }]; beetle.pathIndex = 0;
@@ -654,27 +801,22 @@
                         }
                     }
                 }
-            });
+            }
 
-            // Defensive colony unit engagement tracking hooks
-            antEntitiesList.forEach(ant => {
-                // 🩹 SPECIFICATION HEALING: Ants recover hit points passively over a 5-minute time window if alive
+            // Ant Mechanics & Soft Separation
+            for (let ant of antEntitiesList) {
                 if (ant.hp > 0 && ant.hp < ant.maxHp) {
-                    ant.hp = Math.min(ant.maxHp, ant.hp + (ant.maxHp / 18000));
+                    ant.hp = Math.min(ant.maxHp, ant.hp + (ant.maxHp / 3600));
                 }
 
-                if (ant.type === 'queen') {
-                    let immediateBeetles = insideBeetlesList.filter(b => getHexDistance(ant.row, ant.col, b.row, b.col) <= 2);
-                    if (immediateBeetles.length > 0 && Math.random() < 0.05) { ant.hp -= 2; }
-                    return;
-                }
+                if (ant.type === 'queen') continue;
 
                 let hostileBeetles = insideBeetlesList.filter(b => getHexDistance(ant.row, ant.col, b.row, b.col) <= 5);
                 if (hostileBeetles.length > 0) {
                     hostileBeetles.sort((a,b) => getHexDistance(ant.row, ant.col, a.row, a.col) - getHexDistance(ant.row, ant.col, b.row, b.col));
                     let closestBeetle = hostileBeetles[0];
                     
-                    if (getHexDistance(ant.row, ant.col, closestBeetle.row, closestBeetle.col) <= 1.2) {
+                    if (getHexDistance(ant.row, ant.col, closestBeetle.row, closestBeetle.col) <= (closestBeetle.type === 'super_beetle' ? 2.0 : 1.2)) {
                         ant.state = 'fighting';
                         ant.angle = Math.atan2(closestBeetle.y - ant.y, closestBeetle.x - ant.x);
                         ant.path = null;
@@ -682,7 +824,7 @@
                             closestBeetle.hp -= (ant.type === 'warrior') ? 5 : 1; 
                             closestBeetle.lastAttackerId = ant.id; 
                         }
-                        return;
+                        continue;
                     } else if (ant.state !== 'marching' || !ant.path) {
                         let combatRoute = computeHexGridPath(ant.row, ant.col, closestBeetle.row, closestBeetle.col);
                         if (combatRoute) { ant.path = combatRoute; ant.pathIndex = 0; ant.state = 'marching'; }
@@ -690,14 +832,15 @@
                 }
 
                 if (ant.state === 'fighting') ant.state = 'idle'; 
-            });
+            }
 
             insideBeetlesList = insideBeetlesList.filter(b => {
                 if (b.hp <= 0) {
-                    for (let j = 0; j < 12; j++) {
+                    let dropNuggetsCount = (b.type === 'super_beetle') ? 16 : ((b.type === 'big_beetle') ? 8 : 2);
+                    for (let j = 0; j < dropNuggetsCount; j++) {
                         looseFoodItems.push({
-                            id: 'beetle_loot_' + Math.floor(Math.random() * 999999), row: b.row, col: b.col,
-                            x: b.x + (Math.random() * 12 - 6), y: b.y + (Math.random() * 12 - 6), assignedAntId: null
+                            id: 'beetle_loot_' + Math.floor(Math.random() * 999999) + '_' + j, row: b.row, col: b.col,
+                            x: b.x + (Math.random() * 24 - 12), y: b.y + (Math.random() * 24 - 12), assignedAntId: null
                         });
                     }
                     return false;
@@ -707,7 +850,7 @@
 
             antEntitiesList = antEntitiesList.filter(a => a.type === 'queen' || a.hp > 0);
 
-            // Blackboard Compile Actions Lists
+            // Blackboard Registry Generation
             let blackboardTasksList = [];
             for (let r = 0; r < totalGridRows; r++) {
                 for (let c = 0; c < totalGridCols; c++) {
@@ -722,30 +865,28 @@
             }
 
             if (foodStockpile < calculateMaxFoodCapacity()) {
-                looseFoodItems.forEach(foodNode => {
+                for (let foodNode of looseFoodItems) {
                     if (!foodNode.assignedAntId) {
                         blackboardTasksList.push({ type: 'food', node: foodNode, r: foodNode.row, c: foodNode.col, priority: 1 });
                     }
-                });
+                }
             }
 
-            markedMiningTasks.forEach(miningNode => {
+            for (let miningNode of markedMiningTasks) {
                 blackboardTasksList.push({ type: 'dig', node: miningNode, r: miningNode.row, c: miningNode.col, priority: 2 });
-            });
+            }
 
             let globalWorkExists = blackboardTasksList.length > 0;
 
-            antEntitiesList.forEach(ant => {
-                if (ant.type === 'queen' || ant.state === 'fighting') return;
+            for (let ant of antEntitiesList) {
+                if (ant.type === 'queen' || ant.state === 'fighting') continue;
 
-                // 🍂 SPECIFICATION HOOK: Force interrupted food carriers to accurately route home to food cells immediately
                 if (ant.carryingFood && ant.state === 'idle') {
                     routeFoodPelletHome(ant);
-                    return;
+                    continue;
                 }
 
                 let activeRallyPoint = ant.group > 0 ? groupRallyPoints[ant.group] : null;
-                
                 if (ant.state === 'idle') {
                     ant.activeDigTarget = null;
                     ant.activeBuildTarget = null;
@@ -804,10 +945,9 @@
                 if (ant.state === 'idle') {
                     let localViableJobs = [];
 
-                    blackboardTasksList.forEach(task => {
-                        if (ant.type === 'warrior' && ant.group === 0) return; 
+                    for (let task of blackboardTasksList) {
+                        if (ant.type === 'warrior' && ant.group === 0) continue; 
                         
-                        // ⛏️ SPECIFICATION HOOK: Group workers can pull excavation tasks within a 3-hex radius filter smoothly
                         let canTakeJob = isAvailableForWork;
                         if (!canTakeJob) {
                             if (task.type === 'food' && ant.group > 0 && activeRallyPoint) {
@@ -819,12 +959,12 @@
                                 }
                             }
                         }
-                        if (!canTakeJob) return;
-                        if (ant.type !== 'worker' && ['blueprint', 'egg_need', 'dig'].includes(task.type)) return;
+                        if (!canTakeJob) continue;
+                        if (ant.type !== 'worker' && ['blueprint', 'egg_need', 'dig'].includes(task.type)) continue;
 
                         let dist = getHexDistance(ant.row, ant.col, task.r, task.c);
                         localViableJobs.push({ job: task, dist: dist });
-                    });
+                    }
 
                     if (localViableJobs.length > 0) {
                         localViableJobs.sort((a, b) => {
@@ -843,7 +983,7 @@
                                     ant.targetFoodRef = null; ant.carryingFood = true; routeFoodPelletHome(ant);
                                 } else { ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; }
                                 blackboardTasksList = blackboardTasksList.filter(t => t.node !== selectedTask.node);
-                                return;
+                                continue;
                             }
                         } else if (selectedTask.type === 'blueprint' && !selectedTask.node.assignedAntId) {
                             let route = computeHexGridPath(ant.row, ant.col, selectedTask.r, selectedTask.c);
@@ -852,7 +992,7 @@
                                 if (route.length === 0) { ant.path = null; ant.state = 'building'; ant.buildProgress = 0; }
                                 else { ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; }
                                 blackboardTasksList = blackboardTasksList.filter(t => t.node !== selectedTask.node);
-                                return;
+                                continue;
                             }
                         } else if (selectedTask.type === 'egg_need' && !selectedTask.node.assignedEggCarrierId) {
                             let route = computeHexGridPath(ant.row, ant.col, 22, 22);
@@ -865,7 +1005,7 @@
                                     else { selectedTask.node.assignedEggCarrierId = null; ant.targetEggCell = null; ant.state = 'idle'; ant.carryingEgg = false; }
                                 } else { ant.path = route; ant.pathIndex = 0; }
                                 blackboardTasksList = blackboardTasksList.filter(t => t.node !== selectedTask.node);
-                                return;
+                                continue;
                             }
                         } else if (selectedTask.type === 'dig') {
                             let route = getPathToAdjacentWalkableTile(ant.row, ant.col, selectedTask.node.row, selectedTask.node.col);
@@ -873,7 +1013,7 @@
                                 ant.activeDigTarget = selectedTask.node;
                                 if (route.length === 0) { ant.path = null; ant.state = 'digging'; ant.digProgress = 0; }
                                 else { ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; }
-                                return;
+                                continue;
                             } else {
                                 ant.state = 'idle'; 
                             }
@@ -889,7 +1029,7 @@
 
                     if (requiresHomeFallbackWalk && getHexDistance(ant.row, ant.col, fallbackDestRow, fallbackDestCol) > 2) {
                         let homeRoute = computeHexGridPath(ant.row, ant.col, fallbackDestRow, fallbackDestCol);
-                        if (homeRoute && homeRoute.length > 0) { ant.path = homeRoute; ant.pathIndex = 0; ant.state = 'marching'; return; }
+                        if (homeRoute && homeRoute.length > 0) { ant.path = homeRoute; ant.pathIndex = 0; ant.state = 'marching'; continue; }
                     }
                 }
 
@@ -900,13 +1040,13 @@
                             ant.path = null; ant.state = 'idle'; 
                             ant.activeDigTarget = null; ant.activeBuildTarget = null; ant.targetFoodRef = null;
                             if (ant.targetEggCell) { ant.targetEggCell.assignedEggCarrierId = null; ant.targetEggCell = null; ant.carryingEgg = false; }
-                            return; 
+                            continue; 
                         }
 
                         let nCenter = calculateHexUnscaledCenter(dest.r, dest.c); let distLeft = Math.hypot(nCenter.x - ant.x, nCenter.y - ant.y);
                         
                         let sepVectorX = 0, sepVectorY = 0; let proximateNeighbors = 0;
-                        antEntitiesList.forEach(otherAnt => {
+                        for (let otherAnt of antEntitiesList) {
                             if (otherAnt.id !== ant.id && otherAnt.type !== 'queen') {
                                 let separationDistance = Math.hypot(otherAnt.x - ant.x, otherAnt.y - ant.y);
                                 if (separationDistance > 0 && separationDistance < 10) {
@@ -915,7 +1055,7 @@
                                     proximateNeighbors++;
                                 }
                             }
-                        });
+                        }
 
                         let currentTileHexNode = hexMatrixGrid[ant.row][ant.col];
                         let activeSpeedMultiplier = (currentTileHexNode && currentTileHexNode.state === 'speed_cell') ? 2.0 : 1.0;
@@ -960,12 +1100,12 @@
                         else if (ant.activeDigTarget && isAvailableForWork) { ant.state = 'digging'; ant.digProgress = 0; } 
                         else { ant.state = 'idle'; ant.activeDigTarget = null; ant.activeBuildTarget = null; ant.targetFoodRef = null; }
                     }
-                    return;
+                    continue;
                 }
 
                 if (ant.state === 'building' && ant.activeBuildTarget) {
                     const bCell = ant.activeBuildTarget;
-                    if (bCell.state !== 'blueprint') { ant.activeBuildTarget = null; ant.state = 'idle'; return; }
+                    if (bCell.state !== 'blueprint') { ant.activeBuildTarget = null; ant.state = 'idle'; continue; }
                     let bCenter = calculateHexUnscaledCenter(bCell.row, bCell.col); ant.angle = Math.atan2(bCenter.y - ant.y, bCenter.x - ant.x);
                     
                     ant.buildProgress++;
@@ -979,11 +1119,11 @@
                         if (ant.pendingGroup) { ant.group = ant.pendingGroup; ant.pendingGroup = null; }
                         refreshDashboardCounters();
                     }
-                    return;
+                    continue;
                 }
 
                 if (ant.state === 'digging' && ant.activeDigTarget) {
-                    if (ant.activeDigTarget.state !== 'dirt') { ant.activeDigTarget = null; ant.state = 'idle'; return; }
+                    if (ant.activeDigTarget.state !== 'dirt') { ant.activeDigTarget = null; ant.state = 'idle'; continue; }
                     let tCenter = calculateHexUnscaledCenter(ant.activeDigTarget.row, ant.activeDigTarget.col); ant.angle = Math.atan2(tCenter.y - ant.y, tCenter.x - ant.x);
                     let coops = antEntitiesList.filter(a => a.state === 'digging' && a.activeDigTarget === ant.activeDigTarget).length;
                     
@@ -992,49 +1132,20 @@
                         let brokenTile = ant.activeDigTarget;
                         let companions = antEntitiesList.filter(a => a.state === 'digging' && a.activeDigTarget === brokenTile);
 
-                        if (brokenTile.hasBeetle) {
-                            let bType = brokenTile.hasBeetle;
-                            let isBig = bType === 'big_beetle';
-                            let tc = calculateHexUnscaledCenter(brokenTile.row, brokenTile.col);
-                            insideBeetlesList.push({
-                                id: 'beetle_unleashed_' + Math.floor(Math.random() * 999999),
-                                type: bType, hp: isBig ? 1000 : 300, maxHp: isBig ? 1000 : 300,
-                                damage: isBig ? 10 : 5, splash: isBig, x: tc.x, y: tc.y, row: brokenTile.row, col: brokenTile.col,
-                                angle: Math.random() * Math.PI * 2, speed: isBig ? 0.15 : 0.22,
-                                attackTimer: 0, path: null, pathIndex: 0, pathThrottle: 0, lastAttackerId: null
-                            });
-                            brokenTile.hasBeetle = null;
+                        if (brokenTile.hasBeetle || brokenTile.isMysteryFood) {
+                            triggerBeetleCavernCollapse(brokenTile);
+                        } else {
+                            brokenTile.state = 'open';
                         }
 
-                        if (brokenTile.isMysteryFood) {
-                            brokenTile.isMysteryFood = false;
-                            let localNodes = getHexNeighbors(brokenTile.row, brokenTile.col);
-                            let options = [brokenTile, ...localNodes];
-                            options.forEach(n => {
-                                hexMatrixGrid[n.row][n.col].state = 'open';
-                                markedMiningTasks = markedMiningTasks.filter(t => t.row !== n.row || t.col !== n.col);
-                            });
-                            
-                            let nuggetsCount = Math.floor(Math.random() * 11) + 5; 
-                            for(let j=0; j<nuggetsCount; j++) {
-                                let pickTile = options[Math.floor(Math.random() * options.length)];
-                                let tc = calculateHexUnscaledCenter(pickTile.row, pickTile.col);
-                                looseFoodItems.push({
-                                    id: 'food_' + Math.floor(Math.random() * 999999) + '_' + j, row: pickTile.row, col: pickTile.col,
-                                    x: tc.x + (Math.random() * 8 - 4), y: tc.y + (Math.random() * 8 - 4), assignedAntId: null
-                                });
-                            }
-                        }
-
-                        brokenTile.state = 'open';
                         markedMiningTasks = markedMiningTasks.filter(t => t.row !== brokenTile.row || t.col !== brokenTile.col);
-                        companions.forEach(comp => {
+                        for (let comp of companions) {
                             comp.activeDigTarget = null; comp.state = 'idle'; comp.path = null;
                             if (comp.pendingGroup) { comp.group = comp.pendingGroup; comp.pendingGroup = null; }
-                        });
+                        }
                         refreshDashboardCounters();
                     }
-                    return;
+                    continue;
                 }
 
                 if (ant.state === 'idle') {
@@ -1049,7 +1160,7 @@
                         }
                     }
                 }
-            });
+            }
         }
 
         function routeFoodPelletHome(ant) {
@@ -1068,6 +1179,7 @@
         function drawSimulationFrameContext() {
             ctx.clearRect(0, 0, viewWidth, viewHeight);
 
+            // Layer 1: Hex Map Grids
             for (let r = 0; r < totalGridRows; r++) {
                 for (let c = 0; c < totalGridCols; c++) {
                     const cell = hexMatrixGrid[r][c]; const unscaledCenter = calculateHexUnscaledCenter(r, c);
@@ -1102,7 +1214,7 @@
                         } else if (cell.hasBeetle) {
                             ctx.save(); ctx.fillStyle = '#ff2b2b';
                             ctx.font = `bold ${Math.floor(13 * currentZoomFactor)}px 'Orbitron'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                            ctx.fillText('!', screenX, screenY); ctx.restore();
+                            ctx.fillText(cell.hasBeetle === 'super_beetle' ? '☠️' : (cell.isDoubleBeetle ? '!!' : '!'), screenX, screenY); ctx.restore();
                         }
                     }
 
@@ -1123,22 +1235,25 @@
                 }
             }
 
-            looseFoodItems.forEach(food => {
+            // Layer 2: Loose Food Pieces
+            for (let food of looseFoodItems) {
                 let sx = viewWidth / 2 + (food.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
                 let sy = viewHeight / 2 + (food.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
-                if (sx < -10 || sx > viewWidth + 10 || sy < -10 || sy > viewHeight + 10) return;
+                if (sx < -10 || sx > viewWidth + 10 || sy < -10 || sy > viewHeight + 10) continue;
                 ctx.save(); ctx.beginPath(); ctx.arc(sx, sy, 2.5 * currentZoomFactor, 0, Math.PI * 2);
                 ctx.fillStyle = '#ffbd59'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); ctx.restore();
-            });
+            }
 
-            markedMiningTasks.forEach(task => {
+            // Layer 3: Highlighting Brushes Task Queue Mask
+            for (let task of markedMiningTasks) {
                 let center = calculateHexUnscaledCenter(task.row, task.col);
                 let sx = viewWidth / 2 + (center.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
                 let sy = viewHeight / 2 + (center.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
                 ctx.save(); ctx.fillStyle = 'rgba(243, 156, 18, 0.7)';
                 drawHexagonalOutlineShape(sx, sy, hexRadius * currentZoomFactor); ctx.fill(); ctx.restore();
-            });
+            }
 
+            // Layer 4: Squad Rally Markers
             for (let gNum = 1; gNum <= 6; gNum++) {
                 let point = groupRallyPoints[gNum];
                 if (point) {
@@ -1153,52 +1268,70 @@
                 }
             }
 
-            // Draw Unleashed Subterranean Enemy Beetles
-            insideBeetlesList.forEach(beetle => {
+            // Layer 5: High-Detail 2D Subterranean Enemy Beetles
+            for (let beetle of insideBeetlesList) {
                 let sx = viewWidth / 2 + (beetle.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
                 let sy = viewHeight / 2 + (beetle.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
-                if (sx < -40 || sx > viewWidth + 40 || sy < -40 || sy > viewHeight + 40) return;
+                if (sx < -60 || sx > viewWidth + 60 || sy < -60 || sy > viewHeight + 60) continue;
 
                 ctx.save(); ctx.translate(sx, sy); ctx.rotate(beetle.angle);
-                let bScale = (beetle.splash ? 1.6 : 1.0) * currentZoomFactor;
+                let isSuper = (beetle.type === 'super_beetle');
+                let bScale = (isSuper ? 3.2 : (beetle.type === 'big_beetle' ? 1.6 : 1.0)) * currentZoomFactor;
 
-                ctx.strokeStyle = '#121411'; ctx.lineWidth = 1.6 * currentZoomFactor;
-                [-2.2, -1.5, -0.8, 0.8, 1.5, 2.2].forEach(lAng => {
-                    ctx.beginPath(); ctx.moveTo(0, 0);
-                    let lx = (5 * bScale) * Math.cos(lAng), ly = (5 * bScale) * Math.sin(lAng);
-                    ctx.lineTo(lx, ly); ctx.lineTo(lx + (4 * bScale) * Math.cos(lAng + 0.2), ly + (4 * bScale) * Math.sin(lAng + 0.2));
+                ctx.strokeStyle = isSuper ? '#2a0202' : '#0d0f0c'; ctx.lineWidth = 1.8 * bScale;
+                let legAngles = [-2.1, -1.5, -0.9, 0.9, 1.5, 2.1];
+                for (let lAng of legAngles) {
+                    ctx.beginPath(); ctx.moveTo(-2 * bScale, 0);
+                    let jx = -2 * bScale + (5.5 * bScale) * Math.cos(lAng);
+                    let midY = (5.5 * bScale) * Math.sin(lAng);
+                    ctx.lineTo(jx, midY);
+                    ctx.lineTo(jx + (4.5 * bScale) * Math.cos(lAng + 0.35), midY + (4.5 * bScale) * Math.sin(lAng + 0.35));
                     ctx.stroke();
-                });
+                }
 
-                ctx.fillStyle = beetle.splash ? '#211616' : '#191f17';
-                ctx.strokeStyle = '#050705'; ctx.lineWidth = 0.9 * currentZoomFactor;
+                ctx.fillStyle = isSuper ? '#420b0b' : (beetle.type === 'big_beetle' ? '#211616' : '#151b14');
+                ctx.strokeStyle = '#040504'; ctx.lineWidth = 1.0 * bScale;
 
-                ctx.beginPath(); ctx.ellipse(-5 * bScale, 0, 7 * bScale, 5.5 * bScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(-12 * bScale, 0); ctx.lineTo(2 * bScale, 0); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(-5.5 * bScale, 0, 7.5 * bScale, 6.0 * bScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-13 * bScale, 0); ctx.lineTo(2 * bScale, 0); ctx.stroke();
+                
+                ctx.strokeStyle = isSuper ? 'rgba(255,100,100,0.25)' : 'rgba(255, 255, 255, 0.12)'; ctx.lineWidth = 1.5 * bScale;
+                ctx.beginPath(); ctx.arc(-6 * bScale, -3 * bScale, 3 * bScale, Math.PI, Math.PI*1.5); ctx.stroke();
+                ctx.beginPath(); ctx.arc(-6 * bScale, 3 * bScale, 3 * bScale, Math.PI * 0.5, Math.PI); ctx.stroke();
+                ctx.strokeStyle = '#040504'; ctx.lineWidth = 1.0 * bScale;
 
-                ctx.fillStyle = beetle.splash ? '#3d2424' : '#2b3627';
-                ctx.beginPath(); ctx.ellipse(3 * bScale, 0, 3 * bScale, 4.2 * bScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = isSuper ? '#5e1515' : (beetle.type === 'big_beetle' ? '#3d2424' : '#253021');
+                ctx.beginPath(); ctx.ellipse(2.5 * bScale, 0, 3.2 * bScale, 4.5 * bScale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
-                ctx.fillStyle = beetle.splash ? '#211616' : '#191f17';
-                ctx.beginPath(); ctx.arc(7 * bScale, 0, 2 * bScale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = isSuper ? '#2a0202' : (beetle.type === 'big_beetle' ? '#211616' : '#151b14');
+                ctx.beginPath(); ctx.arc(6.5 * bScale, 0, 2.2 * bScale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
-                ctx.strokeStyle = '#121411'; ctx.lineWidth = 1.3 * currentZoomFactor;
-                ctx.beginPath(); ctx.arc(9 * bScale, 1.4 * bScale, 1.8 * bScale, -Math.PI/2, 0); ctx.stroke();
-                ctx.beginPath(); ctx.arc(9 * bScale, -1.4 * bScale, 1.8 * bScale, 0, Math.PI/2); ctx.stroke();
+                ctx.strokeStyle = '#0d0f0c'; ctx.lineWidth = 1.6 * bScale;
+                ctx.fillStyle = '#0e120d';
+                ctx.beginPath(); ctx.arc(8.5 * bScale, 1.4 * bScale, 2.0 * bScale, -Math.PI/2, 0); ctx.stroke();
+                ctx.beginPath(); ctx.arc(8.5 * bScale, -1.4 * bScale, 2.0 * bScale, 0, Math.PI/2); ctx.stroke();
+
+                ctx.lineWidth = 1.0 * bScale;
+                ctx.beginPath(); ctx.moveTo(7.5 * bScale, 1.8 * bScale);
+                ctx.quadraticCurveTo(11 * bScale, 4 * bScale, 13 * bScale, 3 * bScale); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(7.5 * bScale, -1.8 * bScale);
+                ctx.quadraticCurveTo(11 * bScale, -4 * bScale, 13 * bScale, -3 * bScale); ctx.stroke();
 
                 ctx.restore();
+                
                 ctx.save();
-                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx - 12, sy - 18 * currentZoomFactor, 24, 3.5);
-                ctx.fillStyle = beetle.splash ? '#e67e22' : '#ff3333';
-                ctx.fillRect(sx - 12, sy - 18 * currentZoomFactor, 24 * (beetle.hp / beetle.maxHp), 3.5);
+                let barW = isSuper ? 40 : 24;
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(sx - barW/2, sy - (isSuper ? 28 : 18) * currentZoomFactor, barW, 4);
+                ctx.fillStyle = isSuper ? '#9900ef' : (beetle.type === 'big_beetle' ? '#e67e22' : '#ff3333');
+                ctx.fillRect(sx - barW/2, sy - (isSuper ? 28 : 18) * currentZoomFactor, barW * (beetle.hp / beetle.maxHp), 4);
                 ctx.restore();
-            });
+            }
 
-            // Draw Ants
-            antEntitiesList.forEach(ant => {
+            // Layer 6: Procedural Ant Sprites
+            for (let ant of antEntitiesList) {
                 let sx = viewWidth / 2 + (ant.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
                 let sy = viewHeight / 2 + (ant.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
-                if (sx < -25 || sx > viewWidth + 25 || sy < -25 || sy > viewHeight + 25) return;
+                if (sx < -25 || sx > viewWidth + 25 || sy < -25 || sy > viewHeight + 25) continue;
 
                 ctx.save(); ctx.translate(sx, sy); ctx.rotate(ant.angle);
                 let scale = (ant.type === 'queen' ? 1.9 : (ant.type === 'warrior' ? 1.05 : 0.8)) * currentZoomFactor;
@@ -1214,7 +1347,7 @@
 
                 ctx.fillStyle = primaryColor; ctx.beginPath(); ctx.arc(-4.5 * scale, 0, 4.2 * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = accentColor; ctx.beginPath(); ctx.arc(-0.8 * scale, 0, 2.3 * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = ant.type === 'warrior' ? '#ff3b30' : primaryColor; ctx.beginPath(); ctx.arc(2.2 * scale, 0, (ant.type === 'warrior' ? 2.7 : 2.0) * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = ant.type === 'queen' ? '#501210' : (ant.type === 'warrior' ? '#ff3b30' : primaryColor); ctx.beginPath(); ctx.arc(2.2 * scale, 0, (ant.type === 'queen' ? 3.4 : (ant.type === 'warrior' ? 2.7 : 2.0)) * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
                 if (ant.type === 'warrior') {
                     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.9 * currentZoomFactor;
@@ -1239,7 +1372,7 @@
                     ctx.fillStyle = '#00ff66'; ctx.fillRect(sx - 8, sy - 12 * currentZoomFactor, 16 * (ant.hp / ant.maxHp), 2);
                     ctx.restore();
                 }
-            });
+            }
 
             renderMinimapHUDOverlay();
         }
