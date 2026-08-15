@@ -2,2006 +2,980 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Raft Framework</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Colony Simulator - Progressive Build</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; touch-action: none; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #2b5c8f; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        #gameCanvas { display: block; width: 100%; height: 100%; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { font-family: 'Roboto', sans-serif; background-color: #0d0e12; color: #c5c6c7; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        #hud-header { background: linear-gradient(180deg, #161920 0%, #090a0f 100%); border-bottom: 2px solid #45f3ff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0, 243, 255, 0.15); z-index: 10; }
+        .hud-title { font-family: 'Orbitron', sans-serif; font-weight: 700; color: #45f3ff; font-size: 1.1rem; letter-spacing: 2px; }
+        
+        #build-toolbar { display: flex; gap: 8px; margin-left: 20px; }
+        .tool-btn { background: #1a1d24; border: 1px solid #364359; color: #94a3b6; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; transition: all 0.2s; }
+        .tool-btn:hover { border-color: #45f3ff; color: #fff; }
+        .tool-btn.active-tool { background: rgba(0, 243, 255, 0.15); border-color: #45f3ff; color: #45f3ff; box-shadow: 0 0 8px rgba(0, 243, 255, 0.3); }
+        .resource-display { font-family: 'Orbitron', sans-serif; font-weight: bold; color: #ffbd59; font-size: 0.95rem; margin-left: auto; margin-right: 25px; text-shadow: 0 0 5px rgba(255, 189, 89, 0.3); }
 
-        /* Top Left UI */
-        #top-left-ui { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; z-index: 10; }
-        #restart-button, #players-online-button { background: rgba(0, 0, 0, 0.6); color: white; padding: 8px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        #players-online-button { display: flex; align-items: center; gap: 6px; }
-
-        /* Status Bars (Hunger/Thirst) */
-        #status-bars-container { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: none; z-index: 10; }
-        .stat-bar { width: 100px; height: 16px; background: rgba(0, 0, 0, 0.5); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: flex-start; }
-        .stat-bar-label { color: white; font-size: 10px; position: absolute; left: 50%; transform: translateX(-50%); text-shadow: 0 0 2px black; }
-        .stat-fill { height: 100%; width: 100%; border-radius: 8px; transition: width 0.1s ease-out; }
-        #hunger-bar .stat-fill { background: linear-gradient(to right, #e67e22, #f39c12); }
-        #thirst-bar .stat-fill { background: linear-gradient(to right, #3498db, #2980b9); }
-
-        #status-text { pointer-events: auto; background: rgba(0, 0, 0, 0.6); color: white; padding: 6px 12px; border-radius: 20px; font-size: 14px; align-self: center; }
-        #joystick-zone { position: absolute; bottom: 80px; left: 30px; width: 120px; height: 120px; background: rgba(255, 255, 255, 0.15); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
-        #joystick-stick { width: 50px; height: 50px; background: rgba(255, 255, 255, 0.8); border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        #hearts-container { position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; background: rgba(0, 0, 0, 0.5); padding: 4px 10px; border-radius: 12px; }
-        .heart-icon { font-size: 18px; }
-        .heart-icon.lost { filter: grayscale(1) brightness(0.6); }
-        #hotbar-container { width: 100%; display: flex; justify-content: center; pointer-events: auto; margin-bottom: env(safe-area-inset-bottom, 0px); }
-        .hotbar { display: flex; background: rgba(40, 40, 40, 0.85); padding: 6px; border-radius: 12px; border: 2px solid #555; gap: 6px; }
-        .slot { width: 44px; height: 44px; background: #1a1a1a; border: 2px solid #777; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold; position: relative; }
-        .slot.active { border-color: #ffcc00; box-shadow: 0 0 10px #ffcc00; background: #333; }
-        .slot-num { position: absolute; top: 2px; left: 4px; font-size: 9px; color: #aaa; }
-        .item-icon { width: 32px; height: 32px; background-color: #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        .item-count { position: absolute; bottom: 2px; right: 4px; font-size: 10px; color: white; text-shadow: 0 0 2px black; }
-        .item-icon.wood { background-color: #8B4513; }
-        .item-icon.leaf { background-color: #228B22; }
-        .item-icon.scrap_metal { background-color: #7f8c8d; }
-        .item-icon.potato { background-color: #e6b32e; }
-        .item-icon.hook { background-color: #7f8c8d; border: 2px solid #bdc3c7; }
-        .item-icon.wood_plank { background-color: #b38659; }
-        .item-icon.crafting_table { background-color: #b38659; }
-        .item-icon.rope { background-color: #6d4c41; }
-        .item-icon.cup { background-color: #bdc3c7; }
-        .item-icon.cup_filled { background-color: #3498db; }
-
-        #action-buttons-stack { position: absolute; bottom: 75px; right: 25px; display: flex; flex-direction: column; gap: 12px; pointer-events: auto; }
-        .hud-btn { width: 55px; height: 55px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.4); color: white; font-weight: bold; font-size: 10px; }
-        #hand-button { background: #7f8c8d; border: 3px solid #34495e; }
-        #hammer-button { background: #b38659; border: 3px solid #664d33; }
-        #bag-button { background: #8B5A2B; border: 3px solid #5a3a1c; }
-        .btn-icon { font-size: 18px; margin-bottom: -2px; }
-
-        #build-controls-overlay { position: absolute; bottom: 75px; right: 25px; display: none; flex-direction: column; gap: 12px; pointer-events: auto; }
-        .build-btn { width: 55px; height: 55px; border-radius: 12px; border: 3px solid white; color: white; font-size: 20px; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
-        #btn-confirm-build { background: #2ecc71; }
-        #btn-cancel-build { background: #e74c3c; }
-
-        /* Inventory Screen */
-        #inventory-screen { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 280px; background: rgba(30, 30, 30, 0.95); border: 3px solid #444; border-radius: 16px; padding: 14px; display: none; pointer-events: auto; z-index: 10; }
-        #inventory-header { color: white; font-size: 16px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #444; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-        #close-inv-btn { background: #cc3333; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
-        #inventory-scroll-container { width: 100%; height: 180px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        #inventory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-        .inv-slot { aspect-ratio: 1; background: #111; border: 2px solid #555; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.4); font-size: 11px; font-weight: bold; position: relative; }
-
-        /* Crafting Menu Screen */
-        #crafting-menu-screen { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: rgba(30, 30, 30, 0.95); border: 3px solid #444; border-radius: 16px; padding: 14px; display: none; pointer-events: auto; z-index: 10; }
-        #crafting-menu-header { color: white; font-size: 16px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #444; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-        #close-craft-btn { background: #cc3333; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
-        #crafting-recipes { display: flex; flex-direction: column; gap: 10px; }
-        .craft-recipe { display: flex; align-items: center; background: rgba(0, 0, 0, 0.4); padding: 8px; border-radius: 8px; border: 1px solid #555; cursor: pointer; }
-        .craft-recipe:hover { background: rgba(0, 0, 0, 0.6); }
-        .recipe-output-icon { width: 40px; height: 40px; border-radius: 6px; margin-right: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-        .recipe-details { flex-grow: 1; color: white; font-size: 14px; }
-        .recipe-cost { font-size: 11px; color: #aaa; margin-top: 4px; }
-        .recipe-cost span { margin-right: 8px; }
-        .recipe-cost span.insufficient { color: #e74c3c; }
-
-        /* Players List Screen */
-        #players-list-screen { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: 280px; background: rgba(30, 30, 30, 0.95); border: 3px solid #444; border-radius: 16px; padding: 14px; display: none; pointer-events: auto; z-index: 10; }
-        #players-list-header { color: white; font-size: 16px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #444; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-        #close-players-btn { background: #cc3333; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
-        #players-list-content { display: flex; flex-direction: column; gap: 8px; }
-        .player-entry { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.3); padding: 6px 10px; border-radius: 6px; color: white; font-size: 14px; }
-        .player-entry button { background: #2ecc71; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
-
-        /* Invite Received Screen */
-        #invite-received-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 250px; background: rgba(30, 30, 30, 0.98); border: 3px solid #444; border-radius: 16px; padding: 20px; text-align: center; display: none; pointer-events: auto; z-index: 100; }
-        #invite-message { color: white; font-size: 16px; margin-bottom: 15px; }
-        #invite-actions { display: flex; justify-content: center; gap: 10px; }
-        #accept-invite-btn { background: #2ecc71; color: white; border: none; border-radius: 6px; padding: 8px 15px; font-size: 14px; cursor: pointer; }
-        #deny-invite-btn { background: #e74c3c; color: white; border: none; border-radius: 6px; padding: 8px 15px; font-size: 14px; cursor: pointer; }
-
-        /* Registration Screen */
-        #registration-screen { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: rgba(30, 30, 30, 0.98); border: 3px solid #444; border-radius: 16px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 15px; pointer-events: auto; z-index: 200; }
-        #registration-screen h2 { color: white; margin-bottom: 10px; }
-        #registration-screen input { width: calc(100% - 20px); padding: 10px; border-radius: 8px; border: 1px solid #555; background: #1a1a1a; color: white; font-size: 16px; }
-        #registration-screen button { background: #3498db; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        #registration-screen button:hover { background: #2980b9; }
-        #registration-error { color: #e74c3c; font-size: 12px; display: none; }
-
-        #drag-preview { position: absolute; width: 44px; height: 44px; background: rgba(127, 140, 141, 0.6); border: 2px dashed #bdc3c7; border-radius: 8px; pointer-events: none; display: none; z-index: 100; transform: translate(-50%, -50%); }
-        #drag-preview .item-icon { width: 100%; height: 100%; border-radius: 6px; }
-        #drag-preview .item-count { font-size: 12px; }
+        .pause-btn { background: #ff2a2a; border: 1px solid #ff4f4f; color: #fff; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; font-weight: bold; transition: all 0.2s ease; }
+        .pause-btn.paused { background: #00ff55; border-color: #33ff77; color: #000; box-shadow: 0 0 10px rgba(0, 255, 85, 0.5); }
+        #game-viewport-container { flex: 1; position: relative; overflow: hidden; background-color: #050507; display: flex; justify-content: center; align-items: center; }
+        canvas { background-color: #110e0c; box-shadow: 0 0 35px rgba(0, 0, 0, 0.9); display: block; }
+        #zoom-controls { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 15; }
+        .zoom-btn { background: #121620; border: 2px solid #283545; color: #45f3ff; width: 40px; height: 40px; border-radius: 4px; cursor: pointer; font-size: 1.3rem; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+        .zoom-btn:hover { border-color: #ffbd59; background: #1a202c; }
+        
+        #controls-dashboard { background: #11141d; border-top: 2px solid #45f3ff; padding: 5px 15px; display: flex; gap: 10px; align-items: center; height: 135px; z-index: 10; }
+        .pool-card { background: rgba(0, 0, 0, 0.4); border: 1px dashed #45f3ff; border-radius: 6px; padding: 6px; height: 115px; width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+        .pool-title { font-family: 'Orbitron', sans-serif; font-size: 0.55rem; color: #45f3ff; text-align: center; letter-spacing: 0.5px; font-weight: bold; }
+        .pool-row { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: bold; padding: 2px 8px; background: rgba(255,255,255,0.03); border-radius: 3px; }
+        
+        .squads-container { display: flex; gap: 6px; flex: 1; height: 115px; }
+        .squad-card { background: #161a24; border: 1px solid #252e3b; border-radius: 6px; flex: 1; display: flex; flex-direction: column; padding: 4px 6px; cursor: pointer; transition: all 0.2s ease; position: relative; justify-content: space-between; }
+        .squad-card.active-squad { border-color: #45f3ff; background: rgba(0, 243, 255, 0.03); box-shadow: 0 0 8px rgba(0, 243, 255, 0.15); }
+        .squad-header { display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
+        .squad-number { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; }
+        
+        .squad-subrow { display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 0.75rem; background: rgba(0,0,0,0.2); padding: 2px 4px; border-radius: 3px; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .squad-tally { font-weight: bold; color: #fff; }
+        .squad-btns { display: flex; gap: 2px; }
+        .adjust-btn { width: 16px; height: 16px; background: #1f2535; border: 1px solid #364359; color: #c5c6c7; font-size: 0.65rem; font-weight: bold; border-radius: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .adjust-btn:hover { background: #2b344a; color: #45f3ff; }
+        
+        .clear-marker-btn { background: #ff3333; border: none; color: white; font-size: 0.55rem; width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: 3px; cursor: pointer; font-weight: bold; display: none; }
+        #pause-screen-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 8; pointer-events: none; }
+        .pause-text-banner { font-family: 'Orbitron', sans-serif; font-size: 2rem; color: #ff2a2a; font-weight: bold; letter-spacing: 5px; background: rgba(10, 11, 15, 0.95); padding: 15px 40px; border-radius: 6px; border: 2px solid #ff2a2a; box-shadow: 0 0 25px rgba(255, 42, 42, 0.3); }
+        #instruction-tooltip { position: absolute; bottom: 15px; left: 20px; background: rgba(18, 22, 32, 0.85); border: 1px solid #2d3748; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-family: 'Orbitron', sans-serif; color: #94a3b6; pointer-events: none; z-index: 15; }
     </style>
+    <script>
+        let currentZoomFactor = 0.85; let viewScrollOffsetX = 0; let viewScrollOffsetY = 0; let isGamePaused = false;
+        window.adjustCameraZoom = function(amount) { currentZoomFactor = Math.max(0.4, Math.min(2.0, currentZoomFactor + amount)); };
+        window.togglePauseState = function() {
+            isGamePaused = !isGamePaused;
+            document.getElementById('btn-pause-toggle').innerText = isGamePaused ? 'RESUME GAME' : 'PAUSE GAME';
+            document.getElementById('btn-pause-toggle').className = isGamePaused ? 'pause-btn paused' : 'pause-btn';
+            document.getElementById('pause-screen-overlay').style.display = isGamePaused ? 'flex' : 'none';
+        };
+    </script>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <div id="drag-preview"></div>
-    <div id="ui-layer">
-        <div id="top-left-ui">
-            <div id="restart-button">Restart</div>
-            <div id="players-online-button">👥 Online (0)</div>
+    <div id="hud-header">
+        <div class="hud-title">EMPIRES OF THE UNDERGROWTH</div>
+        <div id="build-toolbar">
+            <button id="tool-worker_nest" class="tool-btn" onclick="window.setSelectTool('worker_nest')">🥚 WORKER CELL (20)</button>
+            <button id="tool-warrior_nest" class="tool-btn" onclick="window.setSelectTool('warrior_nest')">⚔️ WARRIOR CELL (30)</button>
+            <button id="tool-food_cell" class="tool-btn" onclick="window.setSelectTool('food_cell')">🍗 FOOD CELL (10)</button>
         </div>
-
-        <div id="status-bars-container">
-            <div class="stat-bar" id="hunger-bar" style="position: relative;">
-                <div class="stat-fill" style="width: 100%;"></div>
-                <span class="stat-bar-label">HUNGER</span>
-            </div>
-            <div class="stat-bar" id="thirst-bar" style="position: relative;">
-                <div class="stat-fill" style="width: 100%;"></div>
-                <span class="stat-bar-label">THIRST</span>
-            </div>
-        </div>
-
-        <div id="status-text">Slot 1 (Hook Tool Selected)</div>
-        <div id="joystick-zone"><div id="joystick-stick"></div></div>
-        <div id="hearts-container">
-            <span class="heart-icon" id="heart-0">❤️</span>
-            <span class="heart-icon" id="heart-1">❤️</span>
-            <span class="heart-icon" id="heart-2">❤️</span>
-            <span class="heart-icon" id="heart-3">❤️</span>
-        </div>
-        <div id="action-buttons-stack">
-            <div class="hud-btn" id="hand-button"><span class="btn-icon">🖐️</span><span id="hand-button-text">THROW</span></div>
-            <div class="hud-btn" id="hammer-button"><span class="btn-icon">🔨</span><span>BUILD</span></div>
-            <div class="hud-btn" id="bag-button"><span class="btn-icon">🎒</span><span>BAG</span></div>
-        </div>
-        <div id="build-controls-overlay">
-            <div class="build-btn" id="btn-confirm-build">✓</div>
-            <div class="build-btn" id="btn-cancel-build">X</div>
-        </div>
-
-        <!-- Inventory Screen -->
-        <div id="inventory-screen">
-            <div id="inventory-header"><span>Inventory (20 Slots)</span><button id="close-inv-btn">X</button></div>
-            <div id="inventory-scroll-container"><div id="inventory-grid"></div></div>
-        </div>
-
-        <!-- Crafting Menu Screen -->
-        <div id="crafting-menu-screen">
-            <div id="crafting-menu-header"><span>Crafting</span><button id="close-craft-btn">X</button></div>
-            <div id="crafting-recipes">
-                <!-- Recipes will be dynamically inserted here -->
-                <div class="craft-recipe" data-recipe="wood_plank" data-craft-location="anywhere">
-                    <div class="recipe-output-icon item-icon wood_plank"></div>
-                    <div class="recipe-details">
-                        <span>Wood Plank</span>
-                        <div class="recipe-cost">
-                            <span data-cost-item="wood">2 Wood</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="craft-recipe" data-recipe="crafting_table" data-craft-location="anywhere">
-                    <div class="recipe-output-icon item-icon crafting_table"></div>
-                    <div class="recipe-details">
-                        <span>Crafting Table</span>
-                        <div class="recipe-cost">
-                            <span data-cost-item="wood">4 Wood</span>
-                            <span data-cost-item="scrap_metal">1 Scrap Metal</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="craft-recipe" data-recipe="rope" data-craft-location="crafting_table">
-                    <div class="recipe-output-icon item-icon rope"></div>
-                    <div class="recipe-details">
-                        <span>Rope</span>
-                        <div class="recipe-cost">
-                            <span data-cost-item="leaf">2 Leaf</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="craft-recipe" data-recipe="cup" data-craft-location="crafting_table">
-                    <div class="recipe-output-icon item-icon cup"></div>
-                    <div class="recipe-details">
-                        <span>Cup</span>
-                        <div class="recipe-cost">
-                            <span data-cost-item="scrap_metal">3 Scrap Metal</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Players List Screen -->
-        <div id="players-list-screen">
-            <div id="players-list-header"><span>Players Online</span><button id="close-players-btn">X</button></div>
-            <div id="players-list-content">
-                <!-- Player entries will be dynamically inserted here -->
-                <!-- <div class="player-entry">Player 1 <button data-player-id="1">Invite</button></div> -->
-            </div>
-        </div>
-
-        <!-- Invite Received Screen -->
-        <div id="invite-received-screen">
-            <div id="invite-message">Player X has invited you to their world!</div>
-            <div id="invite-actions">
-                <button id="accept-invite-btn">Accept</button>
-                <button id="deny-invite-btn">Deny</button>
-            </div>
-        </div>
-
-        <!-- Registration Screen -->
-        <div id="registration-screen">
-            <h2>Register Your Character</h2>
-            <input type="text" id="character-name-input" placeholder="Enter character name">
-            <button id="register-button">Register</button>
-            <div id="registration-error"></div>
-        </div>
-
-        <div id="hotbar-container"><div class="hotbar" id="hotbar"></div></div>
+        <div class="resource-display">🍂 FOOD: <span id="food-current-value">0</span> / <span id="food-max-value">300</span></div>
+        <button id="btn-pause-toggle" class="pause-btn" onclick="window.togglePauseState()">PAUSE GAME</button>
     </div>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <div id="game-viewport-container">
+        <div id="zoom-controls">
+            <button class="zoom-btn" onclick="window.adjustCameraZoom(0.15)">+</button>
+            <button class="zoom-btn" onclick="window.adjustCameraZoom(-0.15)">−</button>
+        </div>
+        <div id="instruction-tooltip">🧠 Intelligent targeting online! Builder ants handle egg-fetching immediately; foraging runs on non-overlapping reservation locks.</div>
+        <canvas id="nestCanvas"></canvas>
+        <div id="pause-screen-overlay"><div class="pause-text-banner">SIMULATION PAUSED</div></div>
+    </div>
+    <div id="controls-dashboard">
+        <div class="pool-card">
+            <div class="pool-title">👑 ROYAL HOME POOL</div>
+            <div class="pool-row"><span>WKR:</span><span id="pool-wkr-value">5</span></div>
+            <div class="pool-row"><span>WAR:</span><span id="pool-war-value">0</span></div>
+        </div>
+        <div class="squads-container" id="squads-container-row"></div>
+    </div>
+
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const statusText = document.getElementById('status-text');
-        const dragPreview = document.getElementById('drag-preview');
-        const dragPreviewIcon = document.createElement('div');
-        dragPreviewIcon.className = 'item-icon';
-        dragPreview.appendChild(dragPreviewIcon);
-        const dragPreviewCount = document.createElement('span');
-        dragPreviewCount.className = 'item-count';
-        dragPreview.appendChild(dragPreviewCount);
+        const canvas = document.getElementById('nestCanvas'); const ctx = canvas.getContext('2d');
+        let activelySelectedSquad = null; const viewWidth = 800; const viewHeight = 600; const hexRadius = 11;
+        const totalGridRows = 45; const totalGridCols = 45; let hexMatrixGrid = []; let antEntitiesList = [];
+        let markedMiningTasks = []; let isMouseButtonDown = false; let dragBrushMode = null;
+        let groupRallyPoints = {1: null, 2: null, 3: null, 4: null, 5: null, 6: null};
+        const groupColorHexes = {1: '#00ff66', 2: '#0088ff', 3: '#ff9900', 4: '#cc00ff', 5: '#ff33aa', 6: '#00ffff'};
 
-        const TILE_SIZE = 32; 
-        const BASE_SPEED = 3.5;
+        let activeConstructionTool = null; let foodStockpile = 0; 
+        const toolCosts = { 'worker_nest': 20, 'warrior_nest': 30, 'food_cell': 10 };
+        const walkableStates = ['open', 'blueprint', 'worker_nest', 'warrior_nest', 'food_cell'];
+        let looseFoodItems = [];
 
-        // Initial states for game variables
-        const initialPlayerState = { x: 0, y: 0, width: 24, height: 24, color: '#8B5A2B', eyeColor: '#FFFFFF', pupilColor: '#000000', inWater: false, health: 4, lastBiteTime: 0, hunger: 100, thirst: 100, lastStatDecayTime: 0 };
-        const initialSharkState = { x: 0, y: 0, width: 26, height: 26, speed: 2.2, active: false, state: "HIDDEN", timer: 0, offscreenTimer: 0, targetX: 0, targetY: 0, angle: 0, lastWaterExitTime: 0 };
-        const initialBuildModeState = { active: false, gridX: 0, gridY: 0, touchX: 0, touchY: 0, isValidPlacement: false, hasEnoughResources: false, buildItemType: 'raft_piece' };
-        const initialHotbarItems = [{ type: "hook", count: 1 }, null, null, null, null, null, null, null]; // Use objects for items
-        const initialInventoryItems = Array(20).fill(null); // 20 inventory slots
-        const initialDragManagerState = { isDragging: false, fromIndex: -1, fromContainer: null, touchId: null, draggedItem: null, dragStartTime: 0 };
-        const initialHookToolState = { state: "IDLE", chargeTimer: 0, chargeColor: "yellow", ringRadius: 0, blinkTimer: 0, x: 0, y: 0, startX: 0, startY: 0, targetX: 0, targetY: 0, speed: 7.0, returnSpeed: 2.0, width: 12, height: 12, carriedObject: null };
+        // Generate Management Cards
+        const dashboardRow = document.getElementById('squads-container-row');
+        for (let idx = 1; idx <= 6; idx++) {
+            let container = document.createElement('div');
+            container.className = 'squad-card';
+            container.id = 'squad-card-' + idx;
+            container.setAttribute('onclick', `window.selectActiveSquadControl(${idx})`);
+            container.innerHTML = `
+                <div class="squad-header">
+                    <div class="squad-number" style="color:${groupColorHexes[idx]}">G${idx}</div>
+                    <button id="clear-marker-btn-${idx}" class="clear-marker-btn" onclick="window.removeSquadRallyFlag(event, ${idx})">✕</button>
+                </div>
+                <div class="squad-subrow">
+                    <span>🥚 W:</span>
+                    <span class="squad-tally" id="squad-wkr-value-${idx}">0</span>
+                    <div class="squad-btns">
+                        <button class="adjust-btn" onclick="window.reallocateAntUnit(event, ${idx}, 1, 'worker')">+</button>
+                        <button class="adjust-btn" onclick="window.reallocateAntUnit(event, ${idx}, -1, 'worker')">-</button>
+                    </div>
+                </div>
+                <div class="squad-subrow">
+                    <span>⚔️ W:</span>
+                    <span class="squad-tally" id="squad-war-value-${idx}">0</span>
+                    <div class="squad-btns">
+                        <button class="adjust-btn" onclick="window.reallocateAntUnit(event, ${idx}, 1, 'warrior')">+</button>
+                        <button class="adjust-btn" onclick="window.reallocateAntUnit(event, ${idx}, -1, 'warrior')">-</button>
+                    </div>
+                </div>`;
+            dashboardRow.appendChild(container);
+        }
 
-        let player;
-        let shark;
-        let buildMode;
-        let hotbarItems;
-        let inventoryItems;
-        let dragManager;
-        let hookTool;
-        let raftGrid; // Stores objects on the raft, e.g., { type: 'raft_piece', walkable: true } or { type: 'crafting_table', walkable: false }
-        let activeSlot;
-        let craftingMenuOpen = false;
-        let registeredCharacterName = null;
-        let onlinePlayers = []; // Stores list of online peer IDs
-
-        let moveVector = { x: 0, y: 0 }; // Joystick input
-        let keyboardMoveVector = { x: 0, y: 0 }; // Keyboard input
-        let combinedMoveVector = { x: 0, y: 0 }; // Combined input
-        let keysPressed = {}; // To track currently pressed keys
-
-        let oceanObjects = [];
-        let oceanObjectSpawnTimer = 0;
-        const OCEAN_OBJECT_SPAWN_INTERVAL = 180; // frames
-        const OCEAN_OBJECT_TYPES = [
-            { type: "wood", color: "#8B4513", width: 20, height: 10, icon: "🪵" },
-            { type: "leaf", color: "#228B22", width: 18, height: 18, icon: "🍃" },
-            { type: "barrel", color: "#6B4226", width: 30, height: 25, icon: "🛢️", contents: [{ type: "wood", count: 2 }, { type: "leaf", count: 2 }, { type: "scrap_metal", count: 1 }, { type: "potato", count: 1 }] }
-        ];
-
-        const ITEM_STACK_LIMITS = {
-            "wood": 10,
-            "leaf": 10,
-            "scrap_metal": 10,
-            "potato": 5,
-            "wood_plank": 10,
-            "rope": 10,
-            "cup": 1,
-            "cup_filled": 1,
-            "hook": 1,
-            "crafting_table": 1 // Crafting table is a placed object, not really stackable in inventory
+        window.setSelectTool = function(toolName) {
+            if (activeConstructionTool === toolName) { activeConstructionTool = null; } 
+            else {
+                activeConstructionTool = toolName; activelySelectedSquad = null;
+                for (let i = 1; i <= 6; i++) { document.getElementById('squad-card-' + i).classList.remove('active-squad'); }
+            }
+            ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell'].forEach(t => {
+                const btn = document.getElementById(t);
+                if (btn) btn.classList.toggle('active-tool', t === 'tool-' + activeConstructionTool);
+            });
         };
 
-        const CRAFTING_RECIPES = {
-            "wood_plank": {
-                output: { type: "wood_plank", count: 1 },
-                cost: [{ type: "wood", count: 2 }],
-                location: "anywhere"
-            },
-            "crafting_table": {
-                output: { type: "crafting_table", count: 1 },
-                cost: [{ type: "wood", count: 4 }, { type: "scrap_metal", count: 1 }],
-                location: "anywhere"
-            },
-            "rope": {
-                output: { type: "rope", count: 1 },
-                cost: [{ type: "leaf", count: 2 }],
-                location: "crafting_table"
-            },
-            "cup": {
-                output: { type: "cup", count: 1 },
-                cost: [{ type: "scrap_metal", count: 3 }],
-                location: "crafting_table"
-            }
-        };
-
-        const FOOD_ITEMS = ["potato"];
-        const DRINK_ITEMS = ["cup", "cup_filled"];
-
-        // --- PeerJS Network Variables ---
-        let peer = null; // Our Peer object
-        let conn = null; // The data connection to another peer
-        let isHost = false; // True if we initiated the connection, false if we received it
-        // IMPORTANT: Replace 'YOUR_PEER_SERVER_HOST' with your actual Render/Railway/Fly.io domain
-        // e.g., 'my-raft-game.onrender.com' or 'my-peer-server.fly.dev'
-        const PEER_SERVER_HOST = 'YOUR_PEER_SERVER_HOST'; 
-        const PEER_SERVER_PATH = '/myapp'; // Must match the path configured on your PeerServer
-
-        function initPeerNetwork() {
-            if (peer && peer.open) {
-                console.log("Peer network already initialized.");
-                return;
-            }
-            if (!registeredCharacterName) {
-                console.error("Cannot initialize Peer network: character name not registered.");
-                return;
-            }
-
-            peer = new Peer(registeredCharacterName, {
-                host: PEER_SERVER_HOST,
-                port: 443,         // Standard port for secure HTTPS/WSS channels
-                path: PEER_SERVER_PATH,
-                secure: true       // Enforces WebSockets Secure (WSS) protocol compliance
-            });
-
-            peer.on('open', (id) => {
-                console.log(`Registered on custom server with ID: ${id}`);
-                // Now that we're connected, we can start fetching online players
-                fetchOnlinePlayers();
-            });
-
-            peer.on('connection', (incomingConn) => {
-                console.log(`Incoming connection from: ${incomingConn.peer}`);
-                if (conn) {
-                    console.warn(`Already connected to ${conn.peer}. Rejecting new connection from ${incomingConn.peer}.`);
-                    incomingConn.close();
-                    return;
-                }
-                conn = incomingConn;
-                isHost = false; // We received the connection, so we are not the host
-                setupNetworkListeners();
-                statusText.innerText = `Connected to ${conn.peer}!`;
-                inviteReceivedScreen.style.display = 'none'; // Close invite screen if open
-                playersListScreen.style.display = 'none'; // Close players list
-                clearInterval(fetchPlayersInterval); // Stop polling
-                fetchPlayersInterval = null;
-            });
-
-            peer.on('error', (err) => {
-                console.error("PeerJS error:", err);
-                statusText.innerText = `Network Error: ${err.type}`;
-            });
-
-            peer.on('disconnected', () => {
-                console.log("Disconnected from PeerServer. Attempting to reconnect...");
-                statusText.innerText = "Disconnected. Reconnecting...";
-                // Optional: Implement a reconnect logic here
-                // peer.reconnect(); // This might be useful if the server allows it
-            });
-        }
-
-        function setupNetworkListeners() {
-            if (!conn) {
-                console.error("No active connection to set up listeners for.");
-                return;
-            }
-
-            conn.on('open', () => {
-                console.log(`Connection to ${conn.peer} opened!`);
-                // Send initial game state or player info
-                conn.send({ type: 'player_info', name: registeredCharacterName, x: player.x, y: player.y });
-            });
-
-            conn.on('data', (data) => {
-                console.log("Received data:", data);
-                // Handle incoming game data (e.g., other player's position, actions)
-                if (data.type === 'player_info') {
-                    statusText.innerText = `Connected to ${data.name}!`;
-                }
-                // Add more data handling logic here for game state synchronization
-            });
-
-            conn.on('close', () => {
-                console.log(`Connection to ${conn.peer} closed.`);
-                statusText.innerText = `Disconnected from ${conn.peer}.`;
-                conn = null;
-                isHost = false;
-            });
-
-            conn.on('error', (err) => {
-                console.error("Connection error:", err);
-                statusText.innerText = `Connection Error with ${conn.peer}: ${err.type}`;
-            });
-        }
-
-        let fetchPlayersInterval = null; // To store the interval ID for player list updates
-
-        async function fetchOnlinePlayers() {
-            if (!peer || !peer.open) {
-                console.warn("Peer not connected, cannot fetch online players.");
-                playersOnlineBtn.innerText = `👥 Online (Offline)`;
-                return;
-            }
-            try {
-                const response = await fetch(`https://${PEER_SERVER_HOST}${PEER_SERVER_PATH}/peers`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const peerIds = await response.json();
-                
-                // Filter out our own ID and any currently connected peer
-                onlinePlayers = peerIds
-                    .filter(id => id !== peer.id && (!conn || conn.peer !== id))
-                    .map(id => ({ id: id, name: id })); // Use ID as name for simplicity, or fetch actual names if available
-
-                renderOnlinePlayers();
-                playersOnlineBtn.innerText = `👥 Online (${onlinePlayers.length})`;
-            } catch (error) {
-                console.error("Failed to fetch online players:", error);
-                playersOnlineBtn.innerText = `👥 Online (Error)`;
-            }
-        }
-
-        function getGridKey(gx, gy) { return `${gx},${gy}`; }
-
-        function initRaft() {
-            raftGrid[getGridKey(-1, -1)] = { type: 'raft_piece', walkable: true };
-            raftGrid[getGridKey(0, -1)] = { type: 'raft_piece', walkable: true };
-            raftGrid[getGridKey(-1, 0)] = { type: 'raft_piece', walkable: true };
-            raftGrid[getGridKey(0, 0)] = { type: 'raft_piece', walkable: true };
-        }
-
-        const hotbarEl = document.getElementById('hotbar');
-        const handButton = document.getElementById('hand-button');
-        const handButtonText = document.getElementById('hand-button-text');
-        
-        function renderItemInSlot(slotElement, item) {
-            slotElement.innerHTML = "";
-            const num = document.createElement('span');
-            num.className = 'slot-num';
-            num.innerText = slotElement.dataset.index ? (parseInt(slotElement.dataset.index) + 1) : '';
-            slotElement.appendChild(num);
-
-            if (item) {
-                const icon = document.createElement('div');
-                icon.className = `item-icon ${item.type}`;
-                icon.innerText = getItemIcon(item.type); // Get specific icon for item type
-                slotElement.appendChild(icon);
-
-                if (item.count > 1) {
-                    const count = document.createElement('span');
-                    count.className = 'item-count';
-                    count.innerText = item.count;
-                    slotElement.appendChild(count);
-                }
-            }
-        }
-
-        function getItemIcon(type) {
-            switch (type) {
-                case "hook": return "🎣";
-                case "wood": return "🪵";
-                case "leaf": return "🍃";
-                case "scrap_metal": return "⚙️";
-                case "potato": return "🥔";
-                case "wood_plank": return " planks"; // Placeholder text for planks
-                case "crafting_table": return "🛠️";
-                case "rope": return "➰";
-                case "cup": return "🥛";
-                case "cup_filled": return "💧";
-                default: return "❓";
-            }
-        }
-
-        function renderHotbarUI() {
-            hotbarEl.innerHTML = "";
-            for (let i = 0; i < 8; i++) {
-                const slot = document.createElement('div');
-                slot.className = `slot ${i === activeSlot ? 'active' : ''}`;
-                slot.dataset.index = i;
-                slot.dataset.container = 'hotbar';
-
-                renderItemInSlot(slot, hotbarItems[i]);
-                
-                addDragDropListeners(slot, i, 'hotbar');
-                slot.addEventListener('pointerdown', (e) => {
-                    if (!dragManager.isDragging) { // Only activate slot if not dragging an item already
-                        setActiveSlot(i);
-                    }
+        window.selectActiveSquadControl = function(squadNum) {
+            if (activelySelectedSquad === squadNum) { activelySelectedSquad = null; } 
+            else {
+                activelySelectedSquad = squadNum; activeConstructionTool = null;
+                ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell'].forEach(t => {
+                    const btn = document.getElementById(t); if (btn) btn.classList.remove('active-tool');
                 });
-                hotbarEl.appendChild(slot);
             }
-            updateHandButton();
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById('squad-card-' + i).classList.toggle('active-squad', i === activelySelectedSquad);
+            }
+        };
+
+        window.removeSquadRallyFlag = function(event, squadNum) {
+            event.stopPropagation(); groupRallyPoints[squadNum] = null;
+            document.getElementById(`clear-marker-btn-${squadNum}`).style.display = 'none';
+            antEntitiesList.forEach(ant => {
+                if (ant.group === squadNum) { ant.path = null; ant.state = 'idle'; ant.targetFoodRef = null; ant.targetEggCell = null; ant.carryingEgg = false; }
+            });
+            refreshDashboardCounters();
+        };
+
+        window.reallocateAntUnit = function(event, squadNum, direction, antType) {
+            event.stopPropagation();
+            if (direction === 1) {
+                let unassignedAnt = antEntitiesList.find(a => a.type === antType && a.group === 0 && !a.pendingGroup);
+                if (unassignedAnt) {
+                    if (unassignedAnt.state === 'digging' || unassignedAnt.state === 'building' || unassignedAnt.state === 'fetching_egg' || unassignedAnt.state === 'delivering_egg') { unassignedAnt.pendingGroup = squadNum; } 
+                    else { unassignedAnt.group = squadNum; unassignedAnt.path = null; unassignedAnt.state = 'idle'; unassignedAnt.targetFoodRef = null; }
+                }
+            } else {
+                let pendingAnt = antEntitiesList.find(a => a.type === antType && a.pendingGroup === squadNum);
+                if (pendingAnt) { pendingAnt.pendingGroup = null; } 
+                else {
+                    let assignedAnt = antEntitiesList.find(a => a.type === antType && a.group === squadNum);
+                    if (assignedAnt) { assignedAnt.group = 0; assignedAnt.path = null; assignedAnt.state = 'idle'; assignedAnt.targetFoodRef = null; }
+                }
+            }
+            refreshDashboardCounters();
+        };
+
+        function refreshDashboardCounters() {
+            let poolWkr = 0, poolWar = 0; let squadCounters = {};
+            for(let i=1; i<=6; i++) squadCounters[i] = { worker: 0, warrior: 0 };
+
+            antEntitiesList.forEach(a => {
+                if (a.type === 'queen') return;
+                let activeGroup = a.pendingGroup ? a.pendingGroup : a.group;
+                if (activeGroup === 0) {
+                    if (a.type === 'worker') poolWkr++;
+                    if (a.type === 'warrior') poolWar++;
+                } else {
+                    if (a.type === 'worker') squadCounters[activeGroup].worker++;
+                    if (a.type === 'warrior') squadCounters[activeGroup].warrior++;
+                }
+            });
+
+            document.getElementById('pool-wkr-value').innerText = poolWkr;
+            document.getElementById('pool-war-value').innerText = poolWar;
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById(`squad-wkr-value-${i}`).innerText = squadCounters[i].worker;
+                document.getElementById(`squad-war-value-${i}`).innerText = squadCounters[i].warrior;
+            }
+            updateFoodDisplayHUD();
         }
 
-        const invGridEl = document.getElementById('inventory-grid');
-        function renderInventorySlots() {
-            invGridEl.innerHTML = "";
-            for (let j = 0; j < 20; j++) {
-                const invSlot = document.createElement('div');
-                invSlot.className = 'inv-slot';
-                invSlot.dataset.index = j;
-                invSlot.dataset.container = 'inventory';
-
-                renderItemInSlot(invSlot, inventoryItems[j]);
-                addDragDropListeners(invSlot, j, 'inventory');
-                invGridEl.appendChild(invSlot);
+        function calculateMaxFoodCapacity() {
+            let count = 0;
+            for (let r = 0; r < totalGridRows; r++) {
+                for (let c = 0; c < totalGridCols; c++) { if (hexMatrixGrid[r][c].state === 'food_cell') count++; }
             }
+            return count * 50;
         }
 
-        function addDragDropListeners(slotElement, index, containerType) {
-            let pressTimer;
+        function updateFoodDisplayHUD() {
+            document.getElementById('food-current-value').innerText = foodStockpile;
+            document.getElementById('food-max-value').innerText = calculateMaxFoodCapacity();
+        }
 
-            slotElement.addEventListener('pointerdown', (e) => {
-                if (e.button !== 0) return; // Only left click
+        function getCanvasMouseCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) * (viewWidth / rect.width),
+                y: (e.clientY - rect.top) * (viewHeight / rect.height)
+            };
+        }
+
+        function calculateHexUnscaledCenter(r, c) {
+            let x = c * hexRadius * 1.5; let y = r * hexRadius * 1.73205;
+            if (c % 2 === 1) y += (hexRadius * 1.73205) / 2;
+            const mapW = totalGridCols * hexRadius * 1.5; const mapH = totalGridRows * hexRadius * 1.73205;
+            return { x: x + (viewWidth - mapW) / 2, y: y + (viewHeight - mapH) / 2 };
+        }
+
+        function getHexCoordinatesFromWorldPosition(sx, sy) {
+            let mapSpaceX = (sx - viewScrollOffsetX - viewWidth / 2) / currentZoomFactor + viewWidth / 2;
+            let mapSpaceY = (sy - viewScrollOffsetY - viewHeight / 2) / currentZoomFactor + viewHeight / 2;
+            let mapOriginX = (viewWidth - (totalGridCols * hexRadius * 1.5)) / 2;
+            let mapOriginY = (viewHeight - (totalGridRows * hexRadius * 1.73205)) / 2;
+            let c = Math.round((mapSpaceX - mapOriginX) / (hexRadius * 1.5));
+            let r = Math.round((mapSpaceY - mapOriginY - (c % 2 === 1 ? (hexRadius * 1.73205) / 2 : 0)) / (hexRadius * 1.73205));
+            if (r >= 0 && r < totalGridRows && c >= 0 && c < totalGridCols) return hexMatrixGrid[r][c];
+            return null;
+        }
+
+        function getHexNeighbors(r, c) {
+            let set = [ {row: r - 1, col: c}, {row: r + 1, col: c}, {row: r, col: c - 1}, {row: r, col: c + 1} ];
+            if (c % 2 === 0) set.push({row: r - 1, col: c - 1}, {row: r - 1, col: c + 1});
+            else set.push({row: r + 1, col: c - 1}, {row: r + 1, col: c + 1});
+            return set.filter(n => n.row >= 0 && n.row < totalGridRows && n.col >= 0 && n.col < totalGridCols);
+        }
+
+        function evaluateTilePassableState(r, c) {
+            if (walkableStates.includes(hexMatrixGrid[r][c].state)) return true;
+            return looseFoodItems.some(f => f.row === r && f.col === c);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.evaluateTilePassableState = evaluateTilePassableState;
+        });
+
+        function computeHexGridPath(startR, startC, endR, endC) {
+            if (startR === endR && startC === endC) return [];
+            let queue = [[startR, startC]]; let parentMap = {}; parentMap[`${startR},${startC}`] = null; let pathFound = false;
+
+            while (queue.length > 0) {
+                let [currR, currC] = queue.shift(); if (currR === endR && currC === endC) { pathFound = true; break; }
+                let adjoin = getHexNeighbors(currR, currC);
+                for (let i = 0; i < adjoin.length; i++) {
+                    let n = adjoin[i]; let nodeKey = `${n.row},${n.col}`;
+                    if (evaluateTilePassableState(n.row, n.col) && !(nodeKey in parentMap)) {
+                        parentMap[nodeKey] = [currR, currC]; queue.push([n.row, n.col]);
+                    }
+                }
+            }
+            if (!pathFound) return null;
+            let finalPath = []; let step = [endR, endC];
+            while (step !== null) { finalPath.push({r: step[0], c: step[1]}); step = parentMap[`${step[0]},${step[1]}`]; }
+            return finalPath.reverse();
+        }
+
+        function getPathToAdjacentWalkableTile(startR, startC, targetR, targetC) {
+            if (getHexNeighbors(targetR, targetC).some(n => n.row === startR && n.col === startC)) return [];
+            let options = getHexNeighbors(targetR, targetC).filter(n => evaluateTilePassableState(n.row, n.col));
+            let shortestLen = 999999; let idealPath = null;
+            options.forEach(n => {
+                let p = computeHexGridPath(startR, startC, n.row, n.col);
+                if (p && p.length < shortestLen) { shortestLen = p.length; idealPath = p; }
+            });
+            return idealPath;
+        }
+
+        function verifyExcavationAdjacencyConstraint(tile) {
+            if (!tile || tile.state !== 'dirt') return false;
+            let perimeter = getHexNeighbors(tile.row, tile.col);
+            return perimeter.some(n => evaluateTilePassableState(n.row, n.col)) || markedMiningTasks.some(t => perimeter.some(n => n.row === t.row && n.col === t.col));
+        }
+
+        function initializeGameEngine() {
+            const midRow = 22; const midCol = 22;
+            for (let r = 0; r < totalGridRows; r++) {
+                hexMatrixGrid[r] = [];
+                for (let c = 0; c < totalGridCols; c++) {
+                    let tileState = (r === 0 || r === totalGridRows - 1 || c === 0 || c === totalGridCols - 1) ? 'wall' : 'dirt';
+                    if (r === midRow && c === midCol) tileState = 'open';
+                    hexMatrixGrid[r][c] = { 
+                        row: r, col: c, state: tileState, blueprintType: null, 
+                        assignedAntId: null, buildProgress: 0, isMysteryFood: false,
+                        eggStatus: 'none', eggProgress: 0, spawnedAntId: null, assignedEggCarrierId: null
+                    };
+                }
+            }
+
+            for (let k = 0; k < 8; k++) {
+                let rR = Math.floor(Math.random() * (totalGridRows - 6)) + 3;
+                let rC = Math.floor(Math.random() * (totalGridCols - 6)) + 3;
+                if (hexMatrixGrid[rR][rC].state === 'dirt' && getHexDistance(rR, rC, midRow, midCol) > 5) {
+                    hexMatrixGrid[rR][rC].isMysteryFood = true;
+                }
+            }
+
+            let perimeterChamber = getHexNeighbors(midRow, midCol);
+            perimeterChamber.forEach(n => { hexMatrixGrid[n.row][n.col].state = 'food_cell'; });
+
+            const qPos = calculateHexUnscaledCenter(midRow, midCol);
+            antEntitiesList.push({ id: 'queen', type: 'queen', row: midRow, col: midCol, x: qPos.x, y: qPos.y, angle: 0, group: 0 });
+
+            for (let idx = 0; idx < 5; idx++) {
+                let cell = perimeterChamber[Math.min(idx, perimeterChamber.length - 1)];
+                let p = calculateHexUnscaledCenter(cell.row, cell.col);
+                antEntitiesList.push({
+                    id: 'worker_' + idx + '_' + Math.floor(Math.random() * 1000), type: 'worker', group: 0, pendingGroup: null,
+                    x: p.x, y: p.y, row: cell.row, col: cell.col, angle: Math.random() * Math.PI * 2, speed: 0.375, 
+                    state: 'idle', path: null, pathIndex: 0, activeDigTarget: null, activeBuildTarget: null, targetFoodRef: null, 
+                    carryingFood: false, targetEggCell: null, carryingEgg: false, buildProgress: 0,
+                    spawnTileRow: cell.row, spawnTileCol: cell.col
+                });
+            }
+
+            window.addEventListener('keydown', e => {
+                if (e.key >= '1' && e.key <= '6') window.selectActiveSquadControl(parseInt(e.key));
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    e.preventDefault(); const pSpeed = 40;
+                    if (e.key === 'ArrowUp') viewScrollOffsetY += pSpeed; if (e.key === 'ArrowDown') viewScrollOffsetY -= pSpeed;
+                    if (e.key === 'ArrowLeft') viewScrollOffsetX += pSpeed; if (e.key === 'ArrowRight') viewScrollOffsetX -= pSpeed;
+                }
+            });
+
+            canvas.addEventListener('mousedown', e => {
+                if (isGamePaused) return; const mouse = getCanvasMouseCoords(e);
+                let cell = getHexCoordinatesFromWorldPosition(mouse.x, mouse.y); if (!cell) return;
                 
-                // Start timer for drag
-                pressTimer = setTimeout(() => {
-                    if (containerType === 'hotbar' && !hotbarItems[index]) return;
-                    if (containerType === 'inventory' && !inventoryItems[index]) return;
-
-                    dragManager.isDragging = true;
-                    dragManager.fromIndex = index;
-                    dragManager.fromContainer = containerType;
-                    dragManager.touchId = e.pointerId;
-                    dragManager.draggedItem = containerType === 'hotbar' ? hotbarItems[index] : inventoryItems[index];
-
-                    dragPreview.style.display = 'block';
-                    dragPreview.style.left = e.clientX + 'px';
-                    dragPreview.style.top = e.clientY + 'px';
-                    dragPreviewIcon.className = `item-icon ${dragManager.draggedItem.type}`;
-                    dragPreviewIcon.innerText = getItemIcon(dragManager.draggedItem.type);
-                    dragPreviewCount.innerText = dragManager.draggedItem.count > 1 ? dragManager.draggedItem.count : '';
-                    
-                    slotElement.setPointerCapture(e.pointerId);
-                }, 3000); // 3 seconds for drag
-
-                // If not dragging, just activate the slot on quick tap
-                if (!dragManager.isDragging) {
-                    setActiveSlot(index);
-                }
-            });
-
-            slotElement.addEventListener('pointermove', (e) => {
-                if (dragManager.isDragging && dragManager.touchId === e.pointerId) {
-                    dragPreview.style.left = e.clientX + 'px';
-                    dragPreview.style.top = e.clientY + 'px';
-                }
-            });
-
-            slotElement.addEventListener('pointerup', (e) => {
-                clearTimeout(pressTimer); // Clear the timer on pointer up
-
-                if (dragManager.isDragging && dragManager.touchId === e.pointerId) {
-                    slotElement.releasePointerCapture(e.pointerId);
-                    dragPreview.style.display = 'none';
-                    
-                    const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
-                    const targetSlot = elemBelow ? elemBelow.closest('.slot, .inv-slot') : null;
-
-                    if (targetSlot) {
-                        const toIndex = parseInt(targetSlot.dataset.index);
-                        const toContainer = targetSlot.dataset.container;
-
-                        let sourceArray = dragManager.fromContainer === 'hotbar' ? hotbarItems : inventoryItems;
-                        let targetArray = toContainer === 'hotbar' ? hotbarItems : inventoryItems;
-
-                        if (sourceArray === targetArray && dragManager.fromIndex === toIndex) {
-                            // Dropped on same slot, no change
-                        } else {
-                            const sourceItem = sourceArray[dragManager.fromIndex];
-                            const targetItem = targetArray[toIndex];
-
-                            if (targetItem && sourceItem.type === targetItem.type && targetItem.count < ITEM_STACK_LIMITS[targetItem.type]) {
-                                // Stack items
-                                const remainingSpace = ITEM_STACK_LIMITS[targetItem.type] - targetItem.count;
-                                const transferAmount = Math.min(sourceItem.count, remainingSpace);
-                                
-                                targetItem.count += transferAmount;
-                                sourceItem.count -= transferAmount;
-
-                                if (sourceItem.count <= 0) {
-                                    sourceArray[dragManager.fromIndex] = null;
-                                }
-                            } else {
-                                // Swap items
-                                sourceArray[dragManager.fromIndex] = targetItem;
-                                targetArray[toIndex] = sourceItem;
+                if (cell.state === 'dirt') {
+                    isMouseButtonDown = true; 
+                    let matchIdx = markedMiningTasks.findIndex(t => t.row === cell.row && t.col === cell.col);
+                    if (matchIdx !== -1) { markedMiningTasks.splice(matchIdx, 1); dragBrushMode = 'dehighlight'; }
+                    else if (verifyExcavationAdjacencyConstraint(cell)) { markedMiningTasks.push(cell); dragBrushMode = 'highlight'; }
+                } else if (evaluateTilePassableState(cell.row, cell.col)) {
+                    if (activeConstructionTool) {
+                        isMouseButtonDown = true;
+                        if (cell.state === 'blueprint' && cell.blueprintType === activeConstructionTool) {
+                            foodStockpile += toolCosts[activeConstructionTool]; updateFoodDisplayHUD();
+                            if (cell.assignedAntId) {
+                                let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
+                                if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
+                            }
+                            cell.state = 'open'; cell.blueprintType = null; cell.assignedAntId = null;
+                            dragBrushMode = 'erase_blueprint';
+                        } else if (cell.state === 'open') {
+                            const cost = toolCosts[activeConstructionTool];
+                            if (foodStockpile >= cost) {
+                                foodStockpile -= cost; updateFoodDisplayHUD();
+                                cell.state = 'blueprint'; cell.blueprintType = activeConstructionTool; cell.assignedAntId = null; cell.buildProgress = 0;
+                                dragBrushMode = 'place_blueprint';
                             }
                         }
-                    } else {
-                        // Dropped outside a valid slot, return to original
+                    } else if (activelySelectedSquad) {
+                        groupRallyPoints[activelySelectedSquad] = { row: cell.row, col: cell.col };
+                        document.getElementById(`clear-marker-btn-${activelySelectedSquad}`).style.display = 'block';
+                        antEntitiesList.forEach(a => { if (a.group === activelySelectedSquad) { a.path = null; a.state = 'idle'; a.targetFoodRef = null; } });
                     }
-                    dragManager.isDragging = false;
-                    dragManager.draggedItem = null;
-                    renderHotbarUI();
-                    renderInventorySlots();
-                    setActiveSlot(activeSlot); // Re-activate current slot
-                }
-            });
-        }
-        
-        // UI Element Selectors
-        const restartBtn = document.getElementById('restart-button');
-        const playersOnlineBtn = document.getElementById('players-online-button');
-        const bagBtn = document.getElementById('bag-button');
-        const hammerBtn = document.getElementById('hammer-button');
-        const invScreen = document.getElementById('inventory-screen');
-        const closeInvBtn = document.getElementById('close-inv-btn');
-        const buildOverlay = document.getElementById('build-controls-overlay');
-        const confirmBuildBtn = document.getElementById('btn-confirm-build');
-        const cancelBuildBtn = document.getElementById('btn-cancel-build');
-        const craftingMenuScreen = document.getElementById('crafting-menu-screen');
-        const closeCraftBtn = document.getElementById('close-craft-btn');
-        const craftingRecipesContainer = document.getElementById('crafting-recipes');
-        const playersListScreen = document.getElementById('players-list-screen');
-        const closePlayersBtn = document.getElementById('close-players-btn');
-        const inviteReceivedScreen = document.getElementById('invite-received-screen');
-        const acceptInviteBtn = document.getElementById('accept-invite-btn');
-        const denyInviteBtn = document.getElementById('deny-invite-btn');
-        const registrationScreen = document.getElementById('registration-screen');
-        const characterNameInput = document.getElementById('character-name-input');
-        const registerButton = document.getElementById('register-button');
-        const registrationError = document.getElementById('registration-error');
-        const playersListContent = document.getElementById('players-list-content');
-
-        restartBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            resetGame();
-        });
-
-        playersOnlineBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            if (!registeredCharacterName) {
-                registrationScreen.style.display = 'flex';
-                return;
-            }
-            if (buildMode.active) exitBuildMode();
-            invScreen.style.display = 'none';
-            craftingMenuScreen.style.display = 'none';
-            playersListScreen.style.display = (playersListScreen.style.display === 'block') ? 'none' : 'block';
-            if (playersListScreen.style.display === 'block') {
-                fetchOnlinePlayers(); // Fetch players when opening the list
-                // Start polling for players every 5 seconds when the list is open
-                fetchPlayersInterval = setInterval(fetchOnlinePlayers, 5000);
-            } else {
-                clearInterval(fetchPlayersInterval); // Stop polling when list is closed
-                fetchPlayersInterval = null;
-            }
-        });
-
-        registerButton.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            const name = characterNameInput.value.trim();
-            if (name.length < 3) {
-                registrationError.innerText = "Name must be at least 3 characters.";
-                registrationError.style.display = 'block';
-                return;
-            }
-            // In a real game, you'd check for name uniqueness on the server.
-            // For PeerJS, the ID is the name, so it must be unique.
-            // This client-side check is a basic safeguard.
-            if (onlinePlayers.some(p => p.name === name) || (peer && peer.id === name)) {
-                registrationError.innerText = "Name already taken or in use.";
-                registrationError.style.display = 'block';
-                return;
-            }
-            registeredCharacterName = name;
-            registrationScreen.style.display = 'none';
-            statusText.innerText = `Welcome, ${registeredCharacterName}!`;
-            
-            initPeerNetwork(); // Initialize PeerJS after registration
-        });
-
-        closePlayersBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            playersListScreen.style.display = 'none';
-            clearInterval(fetchPlayersInterval); // Stop polling when list is closed
-            fetchPlayersInterval = null;
-        });
-
-        function renderOnlinePlayers() {
-            playersListContent.innerHTML = '';
-            if (onlinePlayers.length === 0) {
-                playersListContent.innerHTML = '<div style="color: #aaa; text-align: center; padding: 10px;">No other players online.</div>';
-                return;
-            }
-            onlinePlayers.forEach(playerEntry => {
-                const div = document.createElement('div');
-                div.className = 'player-entry';
-                // Disable invite button if already connected to someone
-                div.innerHTML = `<span>${playerEntry.name}</span> <button data-peer-id="${playerEntry.id}" data-player-name="${playerEntry.name}" ${conn ? 'disabled' : ''}>Invite</button>`;
-                playersListContent.appendChild(div);
-            });
-        }
-
-        playersListContent.addEventListener('pointerdown', (e) => {
-            if (e.target.tagName === 'BUTTON' && e.target.innerText === 'Invite') {
-                e.stopPropagation();
-                const targetPeerId = e.target.dataset.peerId;
-                const targetPlayerName = e.target.dataset.playerName;
-                console.log(`Inviting player ${targetPlayerName} (${targetPeerId})`);
-                
-                if (peer && peer.open && !conn) {
-                    conn = peer.connect(targetPeerId);
-                    isHost = true; // We initiated the connection
-                    setupNetworkListeners();
-                    statusText.innerText = `Inviting ${targetPlayerName}...`;
-                    playersListScreen.style.display = 'none'; // Close players list after inviting
-                    clearInterval(fetchPlayersInterval); // Stop polling
-                    fetchPlayersInterval = null;
-                } else if (conn) {
-                    statusText.innerText = `Already connected to ${conn.peer}.`;
-                } else {
-                    statusText.innerText = `PeerJS not ready or failed to connect.`;
-                }
-            }
-        });
-
-        acceptInviteBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            console.log("Invite accepted!");
-            inviteReceivedScreen.style.display = 'none';
-            // The PeerJS 'connection' event handler already sets up the connection.
-            // Here you'd trigger game state synchronization.
-            statusText.innerText = "Invite accepted! Syncing game...";
-        });
-
-        denyInviteBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            console.log("Invite denied.");
-            inviteReceivedScreen.style.display = 'none';
-            // If there was a pending incoming connection, you might want to close it here.
-            // For this simple setup, we assume the 'connection' event only accepts one.
-        });
-
-        bagBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            if (buildMode.active) exitBuildMode();
-            craftingMenuScreen.style.display = 'none';
-            playersListScreen.style.display = 'none';
-            clearInterval(fetchPlayersInterval); // Stop polling if bag opens over players list
-            fetchPlayersInterval = null;
-            invScreen.style.display = (invScreen.style.display === 'block') ? 'none' : 'block';
-        });
-
-        closeInvBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            invScreen.style.display = 'none';
-        });
-
-        hammerBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            invScreen.style.display = 'none'; 
-            playersListScreen.style.display = 'none';
-            clearInterval(fetchPlayersInterval); // Stop polling if hammer opens over players list
-            fetchPlayersInterval = null;
-            craftingMenuScreen.style.display = 'none'; // Close crafting menu if open
-            
-            // Toggle build mode for raft pieces
-            if (buildMode.active && buildMode.buildItemType === 'raft_piece') {
-                exitBuildMode();
-            } else {
-                enterBuildMode('raft_piece');
-            }
-        });
-
-        // Event listener for clicking on raft pieces or crafting tables
-        canvas.addEventListener('pointerdown', (e) => {
-            if (e.target !== canvas) return; // Only process clicks on canvas itself
-            if (buildMode.active) return; // Don't interfere with build mode
-
-            const worldClickX = e.clientX - (canvas.width / 2 - player.x);
-            const worldClickY = e.clientY - (canvas.height / 2 - player.y);
-            const gridX = Math.floor(worldClickX / TILE_SIZE);
-            const gridY = Math.floor(worldClickY / TILE_SIZE);
-            const clickedKey = getGridKey(gridX, gridY);
-            const clickedObject = raftGrid[clickedKey];
-
-            if (clickedObject) {
-                const objCenterX = gridX * TILE_SIZE + TILE_SIZE / 2;
-                const objCenterY = gridY * TILE_SIZE + TILE_SIZE / 2;
-                const dist = Math.sqrt(Math.pow(player.x - objCenterX, 2) + Math.pow(player.y - objCenterY, 2));
-
-                if (dist < TILE_SIZE * 1.5) { // Within 1.5 tiles
-                    if (clickedObject.type === 'raft_piece') {
-                        enterBuildMode('raft_piece'); // Re-enter build mode for raft pieces
-                        buildMode.gridX = gridX; // Start preview near the clicked piece
-                        buildMode.gridY = gridY;
-                        statusText.innerText = "Build Mode: Place raft pieces.";
-                    } else if (clickedObject.type === 'crafting_table') {
-                        craftingMenuScreen.style.display = 'block';
-                        updateCraftingRecipeAvailability();
-                        statusText.innerText = "Crafting Table opened.";
-                    }
-                }
-            }
-        });
-
-
-        closeCraftBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            craftingMenuScreen.style.display = 'none';
-        });
-
-        craftingRecipesContainer.addEventListener('pointerdown', (e) => {
-            const recipeEl = e.target.closest('.craft-recipe');
-            if (recipeEl) {
-                e.stopPropagation();
-                const recipeType = recipeEl.dataset.recipe;
-                craftItem(recipeType);
-            }
-        });
-
-        function updateCraftingRecipeAvailability() {
-            const recipes = craftingRecipesContainer.querySelectorAll('.craft-recipe');
-            recipes.forEach(recipeEl => {
-                const recipeType = recipeEl.dataset.recipe;
-                const recipe = CRAFTING_RECIPES[recipeType];
-                let canCraft = true;
-
-                // Check crafting location requirement
-                const nearestCraftingTable = findNearestCraftingTable();
-                const isNearCraftingTable = nearestCraftingTable && getDistance(player, nearestCraftingTable) < TILE_SIZE * 1.5;
-
-                if (recipe.location === 'crafting_table' && !isNearCraftingTable) {
-                    canCraft = false;
-                }
-
-                recipe.cost.forEach(costItem => {
-                    const hasItem = getItemCount(costItem.type);
-                    const costSpan = recipeEl.querySelector(`[data-cost-item="${costItem.type}"]`);
-                    if (hasItem < costItem.count) {
-                        canCraft = false;
-                        if (costSpan) costSpan.classList.add('insufficient');
-                    } else {
-                        if (costSpan) costSpan.classList.remove('insufficient');
-                    }
-                });
-
-                recipeEl.style.opacity = canCraft ? '1' : '0.5';
-                recipeEl.style.pointerEvents = canCraft ? 'auto' : 'none';
-            });
-        }
-
-        function craftItem(recipeType) {
-            const recipe = CRAFTING_RECIPES[recipeType];
-            if (!recipe) return;
-
-            let canCraft = true;
-            recipe.cost.forEach(costItem => {
-                if (getItemCount(costItem.type) < costItem.count) {
-                    canCraft = false;
                 }
             });
 
-            // Check crafting location requirement again
-            const nearestCraftingTable = findNearestCraftingTable();
-            const isNearCraftingTable = nearestCraftingTable && getDistance(player, nearestCraftingTable) < TILE_SIZE * 1.5;
-            if (recipe.location === 'crafting_table' && !isNearCraftingTable) {
-                canCraft = false;
-                statusText.innerText = `Must be near a Crafting Table to craft ${recipe.output.type}.`;
-            }
+            canvas.addEventListener('mousemove', e => {
+                if (!isMouseButtonDown || isGamePaused || !dragBrushMode) return;
+                const mouse = getCanvasMouseCoords(e);
+                let cell = getHexCoordinatesFromWorldPosition(mouse.x, mouse.y); if (!cell) return;
 
-            if (canCraft) {
-                recipe.cost.forEach(costItem => {
-                    removeItemFromInventory(costItem.type, costItem.count);
-                });
-                
-                if (recipe.output.type === 'wood_plank' || recipe.output.type === 'crafting_table') {
-                    // For buildable items, enter build mode
-                    enterBuildMode(recipe.output.type);
-                    statusText.innerText = `Crafted ${recipe.output.type}! Now place it.`;
-                    craftingMenuScreen.style.display = 'none'; // Close crafting menu
-                } else {
-                    // Other items go to inventory/hotbar
-                    addItemToInventory(recipe.output.type, recipe.output.count);
-                    statusText.innerText = `Crafted ${recipe.output.count} ${recipe.output.type}!`;
-                }
-                
-                renderInventorySlots();
-                renderHotbarUI(); // In case hotbar items were used
-                updateCraftingRecipeAvailability(); // Update availability after crafting
-            } else {
-                statusText.innerText = `Not enough resources to craft ${recipeType}.`;
-            }
-        }
-
-        // Continuous Blueprint Construction Loop System
-        confirmBuildBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            if (!buildMode.active || !buildMode.isValidPlacement || !buildMode.hasEnoughResources) {
-                statusText.innerText = "Cannot build here or not enough resources!";
-                return;
-            }
-            
-            // Build the current item permanently into dictionary map storage
-            raftGrid[getGridKey(buildMode.gridX, buildMode.gridY)] = { type: buildMode.buildItemType, walkable: buildMode.buildItemType === 'raft_piece' };
-            
-            // Deduct resources
-            const recipe = CRAFTING_RECIPES[buildMode.buildItemType];
-            if (recipe) {
-                recipe.cost.forEach(costItem => {
-                    removeItemFromInventory(costItem.type, costItem.count);
-                });
-            } else if (buildMode.buildItemType === 'raft_piece') { // Default cost for raft piece if not a crafted item
-                removeItemFromInventory("wood", 2); 
-            }
-            
-            renderInventorySlots();
-            renderHotbarUI(); // In case hotbar items were used
-
-            if (buildMode.buildItemType === 'raft_piece') {
-                // Automatically find and jump preview tile to an adjacent open coordinate slot
-                let adjacents = [
-                    {x: buildMode.gridX + 1, y: buildMode.gridY},
-                    {x: buildMode.gridX - 1, y: buildMode.gridY},
-                    {x: buildMode.gridX, y: buildMode.gridY + 1},
-                    {x: buildMode.gridX, y: buildMode.gridY - 1}
-                ];
-
-                let foundNextSpot = false;
-                for (let i = 0; i < adjacents.length; i++) {
-                    let key = getGridKey(adjacents[i].x, adjacents[i].y);
-                    if (!raftGrid[key]) { // Spot is completely vacant and free
-                        buildMode.gridX = adjacents[i].x;
-                        buildMode.gridY = adjacents[i].y;
-                        foundNextSpot = true;
-                        break;
+                if (cell.state === 'dirt') {
+                    let matchIdx = markedMiningTasks.findIndex(t => t.row === cell.row && t.col === cell.col);
+                    if (dragBrushMode === 'highlight' && matchIdx === -1) {
+                        if (verifyExcavationAdjacencyConstraint(cell)) { markedMiningTasks.push(cell); }
+                    } else if (dragBrushMode === 'dehighlight' && matchIdx !== -1) {
+                        markedMiningTasks.splice(matchIdx, 1);
                     }
-                }
-                if (!foundNextSpot) {
-                    // If no adjacent spot found, exit build mode or pick a default
-                    exitBuildMode();
-                    statusText.innerText = "No more adjacent spots to build. Exiting build mode.";
-                } else {
-                    statusText.innerText = "Raft Piece Built! Continuous build loop active...";
-                }
-            } else {
-                // For other items like crafting table, exit build mode after placing one
-                exitBuildMode();
-                statusText.innerText = `${buildMode.buildItemType} placed!`;
-            }
-        });
-
-        cancelBuildBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            exitBuildMode();
-        });
-
-        function enterBuildMode(itemType) {
-            buildMode.active = true;
-            buildMode.buildItemType = itemType;
-            buildOverlay.style.display = 'flex';
-            buildMode.touchX = canvas.width / 2;
-            buildMode.touchY = canvas.height / 2;
-            statusText.innerText = `Build Mode: Place ${itemType}.`;
-        }
-
-        function exitBuildMode() {
-            buildMode.active = false;
-            buildOverlay.style.display = 'none';
-            statusText.innerText = `Active Slot: ${activeSlot + 1} (${hotbarItems[activeSlot] ? hotbarItems[activeSlot].type : 'Empty'})`;
-        }
-
-        window.addEventListener('pointermove', (e) => {
-            if (!buildMode.active) return;
-            buildMode.touchX = e.clientX;
-            buildMode.touchY = e.clientY;
-        });
-
-        function setActiveSlot(index) {
-            activeSlot = index;
-            document.querySelectorAll('.slot').forEach((s, idx) => {
-                if (idx === index) s.classList.add('active');
-                else s.classList.remove('active');
-            });
-            updateHandButton();
-            statusText.innerText = `Active Slot: ${index + 1} (${hotbarItems[activeSlot] ? hotbarItems[activeSlot].type : 'Empty'})`;
-        }
-
-        function updateHandButton() {
-            const activeItem = hotbarItems[activeSlot];
-            const nearestCraftingTable = findNearestCraftingTable();
-            const isNearCraftingTable = nearestCraftingTable && getDistance(player, nearestCraftingTable) < TILE_SIZE * 1.5;
-
-            if (isNearCraftingTable) {
-                handButton.style.display = "flex";
-                handButtonText.innerText = "OPEN";
-                document.querySelector('#hand-button .btn-icon').innerText = "📦";
-                return; // Prioritize opening crafting table
-            }
-
-            if (activeItem) {
-                handButton.style.display = "flex";
-                switch (activeItem.type) {
-                    case "hook":
-                        handButtonText.innerText = "THROW";
-                        document.querySelector('#hand-button .btn-icon').innerText = "🖐️";
-                        break;
-                    case "potato":
-                        handButtonText.innerText = "EAT";
-                        document.querySelector('#hand-button .btn-icon').innerText = "🥔";
-                        break;
-                    case "cup":
-                        handButtonText.innerText = "FILL";
-                        document.querySelector('#hand-button .btn-icon').innerText = "🥛";
-                        break;
-                    case "cup_filled":
-                        handButtonText.innerText = "DRINK";
-                        document.querySelector('#hand-button .btn-icon').innerText = "💧";
-                        break;
-                    default:
-                        handButtonText.innerText = "USE";
-                        document.querySelector('#hand-button .btn-icon').innerText = "🖐️";
-                        break;
-                }
-            } else {
-                handButton.style.display = "none";
-            }
-        }
-
-        function findNearestCraftingTable() {
-            let nearest = null;
-            let minDist = Infinity;
-            for (const key in raftGrid) {
-                const obj = raftGrid[key];
-                if (obj.type === 'crafting_table') {
-                    const coords = key.split(',').map(Number);
-                    const tableX = coords[0] * TILE_SIZE + TILE_SIZE / 2;
-                    const tableY = coords[1] * TILE_SIZE + TILE_SIZE / 2;
-                    const dist = Math.sqrt(Math.pow(player.x - tableX, 2) + Math.pow(player.y - tableY, 2));
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearest = { x: tableX, y: tableY, gridX: coords[0], gridY: coords[1] };
-                    }
-                }
-            }
-            return nearest;
-        }
-
-        function getDistance(obj1, obj2) {
-            return Math.sqrt(Math.pow(obj1.x - obj2.x, 2) + Math.pow(obj1.y - obj2.y, 2));
-        }
-
-        // --- Hook Throwing Charge Input Controllers Interface ---
-        handButton.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            const activeItem = hotbarItems[activeSlot];
-            const nearestCraftingTable = findNearestCraftingTable();
-            const isNearCraftingTable = nearestCraftingTable && getDistance(player, nearestCraftingTable) < TILE_SIZE * 1.5;
-
-            if (isNearCraftingTable) {
-                craftingMenuScreen.style.display = 'block';
-                updateCraftingRecipeAvailability();
-                statusText.innerText = "Crafting Table opened.";
-                return;
-            }
-
-            if (!activeItem) return;
-
-            if (activeItem.type === "hook") {
-                if (hookTool.state === "IDLE") {
-                    hookTool.state = "CHARGING";
-                    hookTool.chargeTimer = 0;
-                    hookTool.chargeColor = "yellow";
-                    hookTool.ringRadius = 15;
-                    handButton.setPointerCapture(e.pointerId);
-                }
-            } else if (activeItem.type === "potato") {
-                eatPotato(activeSlot);
-            } else if (activeItem.type === "cup") {
-                fillCup(activeSlot);
-            } else if (activeItem.type === "cup_filled") {
-                drinkWater(activeSlot);
-            }
-        });
-
-        handButton.addEventListener('pointerup', (e) => {
-            e.stopPropagation();
-            if (hookTool.state === "CHARGING") {
-                handButton.releasePointerCapture(e.pointerId);
-                throwHook();
-            }
-        });
-
-        function throwHook() {
-            hookTool.state = "THROWN";
-            hookTool.x = player.x;
-            hookTool.y = player.y;
-            hookTool.startX = player.x;
-            hookTool.startY = player.y;
-
-            let throwDistance = hookTool.ringRadius * 3.5; 
-            
-            let angle = -Math.PI / 2; // Default to throwing straight up
-            if (combinedMoveVector.x !== 0 || combinedMoveVector.y !== 0) {
-                angle = Math.atan2(combinedMoveVector.y, combinedMoveVector.x);
-            } else if (moveVector.x !== 0 || moveVector.y !== 0) { // Fallback to joystick if keyboard is idle
-                angle = Math.atan2(moveVector.y, moveVector.x);
-            }
-
-            hookTool.targetX = player.x + Math.cos(angle) * throwDistance;
-            hookTool.targetY = player.y + Math.sin(angle) * throwDistance;
-        }
-
-        function eatPotato(slotIndex) {
-            const potato = hotbarItems[slotIndex];
-            if (potato && potato.type === "potato") {
-                player.hunger = 100; // Fill hunger bar
-                removeItemFromHotbar(slotIndex, 1);
-                syncHungerThirstHUD();
-                renderHotbarUI();
-                statusText.innerText = "Ate a potato! Hunger restored.";
-            }
-        }
-
-        function fillCup(slotIndex) {
-            const cup = hotbarItems[slotIndex];
-            if (cup && cup.type === "cup" && player.inWater) {
-                hotbarItems[slotIndex] = { type: "cup_filled", count: 1 };
-                renderHotbarUI();
-                statusText.innerText = "Cup filled with water!";
-            } else if (!player.inWater) {
-                statusText.innerText = "Must be in water to fill cup.";
-            }
-        }
-
-        function drinkWater(slotIndex) {
-            const filledCup = hotbarItems[slotIndex];
-            if (filledCup && filledCup.type === "cup_filled") {
-                player.thirst = 100; // Fill thirst bar
-                hotbarItems[slotIndex] = { type: "cup", count: 1 }; // Cup becomes empty again
-                syncHungerThirstHUD();
-                renderHotbarUI();
-                statusText.innerText = "Drank water! Thirst restored.";
-            }
-        }
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        const joystickZone = document.getElementById('joystick-zone');
-        const joystickStick = document.getElementById('joystick-stick');
-        let joystickActive = false;
-        let joystickStart = { x: 0, y: 0 };
-        const maxDrag = 45; 
-
-        joystickZone.addEventListener('pointerdown', (e) => {
-            joystickActive = true;
-            const rect = joystickZone.getBoundingClientRect();
-            joystickStart = {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            };
-            joystickZone.setPointerCapture(e.pointerId);
-            handleJoystickMove(e);
-        });
-
-        joystickZone.addEventListener('pointermove', (e) => {
-            if (!joystickActive) return;
-            handleJoystickMove(e);
-        });
-
-        function handleJoystickMove(e) {
-            let dx = e.clientX - joystickStart.x;
-            let dy = e.clientY - joystickStart.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance > maxDrag) {
-                dx = (dx / distance) * maxDrag;
-                dy = (dy / distance) * maxDrag;
-                distance = maxDrag;
-            }
-
-            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
-            moveVector.x = dx / maxDrag;
-            moveVector.y = dy / maxDrag;
-        }
-
-        function resetJoystick() {
-            joystickActive = false;
-            joystickStick.style.transform = `translate(0px, 0px)`;
-            moveVector.x = 0;
-            moveVector.y = 0;
-        }
-
-        joystickZone.addEventListener('pointerup', resetJoystick);
-        joystickZone.addEventListener('pointercancel', resetJoystick);
-
-        // Keyboard Controls
-        let tKeyHeld = false;
-        let tKeyChargeTimer = 0;
-        window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(key)) {
-                keysPressed[key] = true;
-                updateKeyboardMoveVector();
-                e.preventDefault(); // Prevent default browser scrolling
-            } else if (key === 'b') {
-                bagBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-            } else if (key === 'c') {
-                hammerBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-            } else if (key === 't') {
-                if (!tKeyHeld) {
-                    tKeyHeld = true;
-                    tKeyChargeTimer = 0;
-                    if (hotbarItems[activeSlot] && hotbarItems[activeSlot].type === "hook" && hookTool.state === "IDLE") {
-                        hookTool.state = "CHARGING";
-                        hookTool.chargeTimer = 0;
-                        hookTool.chargeColor = "yellow";
-                        hookTool.ringRadius = 15;
-                    }
-                }
-            } else if (key >= '1' && key <= '8') {
-                setActiveSlot(parseInt(key) - 1);
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(key)) {
-                delete keysPressed[key];
-                updateKeyboardMoveVector();
-                e.preventDefault();
-            } else if (key === 't') {
-                if (tKeyHeld) {
-                    tKeyHeld = false;
-                    if (hookTool.state === "CHARGING") {
-                        throwHook();
-                    }
-                }
-            }
-        });
-
-        function updateKeyboardMoveVector() {
-            keyboardMoveVector.x = 0;
-            keyboardMoveVector.y = 0;
-            if (keysPressed['a'] || keysPressed['arrowleft']) keyboardMoveVector.x = -1;
-            if (keysPressed['d'] || keysPressed['arrowright']) keyboardMoveVector.x = 1;
-            if (keysPressed['w'] || keysPressed['arrowup']) keyboardMoveVector.y = -1;
-            if (keysPressed['s'] || keysPressed['arrowdown']) keyboardMoveVector.y = 1;
-
-            // Normalize diagonal movement
-            if (keyboardMoveVector.x !== 0 && keyboardMoveVector.y !== 0) {
-                const length = Math.sqrt(keyboardMoveVector.x * keyboardMoveVector.x + keyboardMoveVector.y * keyboardMoveVector.y);
-                keyboardMoveVector.x /= length;
-                keyboardMoveVector.y /= length;
-            }
-        }
-
-        function isStandingOnRaft(x, y) {
-            // Check all four corners of the player for collision with raft pieces
-            const playerCorners = [
-                { px: x, py: y },
-                { px: x + player.width, py: y },
-                { px: x, py: y + player.height },
-                { px: x + player.width, py: y + player.height }
-            ];
-
-            for (const corner of playerCorners) {
-                const gx = Math.floor(corner.px / TILE_SIZE);
-                const gy = Math.floor(corner.py / TILE_SIZE);
-                const raftPiece = raftGrid[getGridKey(gx, gy)];
-                if (raftPiece && raftPiece.walkable) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function isWalkable(x, y) {
-            // Check all four corners of the player for collision with non-walkable raft objects
-            const playerCorners = [
-                { px: x, py: y },
-                { px: x + player.width, py: y },
-                { px: x, py: y + player.height },
-                { px: x + player.width, py: y + player.height }
-            ];
-
-            for (const corner of playerCorners) {
-                const gx = Math.floor(corner.px / TILE_SIZE);
-                const gy = Math.floor(corner.py / TILE_SIZE);
-                const raftObject = raftGrid[getGridKey(gx, gy)];
-                if (raftObject && !raftObject.walkable) {
-                    return false; // Found a non-walkable object
-                }
-            }
-            return true; // All corners are walkable or in water
-        }
-
-        function getOffscreenPosition() {
-            const spawnAngle = Math.random() * Math.PI * 2;
-            const spawnDistance = Math.max(canvas.width, canvas.height) / 1.3 + 120;
-            return {
-                x: player.x + Math.cos(spawnAngle) * spawnDistance,
-                y: player.y + Math.sin(spawnAngle) * spawnDistance
-            };
-        }
-
-        function syncHeartsHUD() {
-            for (let i = 0; i < 4; i++) {
-                const heartEl = document.getElementById(`heart-${i}`);
-                if (heartEl) {
-                    if (i < player.health) {
-                        heartEl.classList.remove('lost');
-                    } else {
-                        heartEl.classList.add('lost');
-                    }
-                }
-            }
-        }
-
-        function syncHungerThirstHUD() {
-            const hungerFill = document.querySelector('#hunger-bar .stat-fill');
-            const thirstFill = document.querySelector('#thirst-bar .stat-fill');
-            hungerFill.style.width = `${player.hunger}%`;
-            thirstFill.style.width = `${player.thirst}%`;
-        }
-
-        function spawnOceanObject() {
-            const typeData = OCEAN_OBJECT_TYPES[Math.floor(Math.random() * OCEAN_OBJECT_TYPES.length)];
-            const spawnX = player.x + (Math.random() * canvas.width * 1.5) - (canvas.width * 0.75); // Spawn across a wider range
-            const spawnY = player.y - (canvas.height / 2) - 100; // Spawn above the screen
-            oceanObjects.push({
-                x: spawnX,
-                y: spawnY,
-                type: typeData.type,
-                color: typeData.color,
-                width: typeData.width,
-                height: typeData.height,
-                speed: 0.8 + Math.random() * 0.5, // Slightly varied speed
-                contents: typeData.contents ? [...typeData.contents] : null // Copy contents for barrels
-            });
-        }
-
-        function getItemCount(type) {
-            let count = 0;
-            hotbarItems.forEach(item => {
-                if (item && item.type === type) count += item.count;
-            });
-            inventoryItems.forEach(item => {
-                if (item && item.type === type) count += item.count;
-            });
-            return count;
-        }
-
-        function addItemToInventory(type, count) {
-            let remainingCount = count;
-
-            // Determine target array based on item type
-            let targetArrays = [];
-            if (FOOD_ITEMS.includes(type) || DRINK_ITEMS.includes(type)) {
-                targetArrays.push(hotbarItems); // Food and cups go to hotbar first
-                targetArrays.push(inventoryItems);
-            } else {
-                targetArrays.push(inventoryItems); // Other items go to inventory first (bag)
-                targetArrays.push(hotbarItems);
-            }
-
-            // Try to stack in existing slots first
-            const tryStack = (arr) => {
-                for (let i = 0; i < arr.length; i++) {
-                    if (arr[i] && arr[i].type === type && arr[i].count < ITEM_STACK_LIMITS[type]) {
-                        const space = ITEM_STACK_LIMITS[type] - arr[i].count;
-                        const transfer = Math.min(remainingCount, space);
-                        arr[i].count += transfer;
-                        remainingCount -= transfer;
-                        if (remainingCount <= 0) return true;
-                    }
-                }
-                return false;
-            };
-
-            // Try to find empty slots
-            const tryEmptySlot = (arr) => {
-                for (let i = 0; i < arr.length; i++) {
-                    if (!arr[i]) {
-                        const transfer = Math.min(remainingCount, ITEM_STACK_LIMITS[type]);
-                        arr[i] = { type: type, count: transfer };
-                        remainingCount -= transfer;
-                        if (remainingCount <= 0) return true;
-                    }
-                }
-                return false;
-            };
-
-            for (const arr of targetArrays) {
-                if (tryStack(arr)) return;
-            }
-            for (const arr of targetArrays) {
-                if (tryEmptySlot(arr)) return;
-            }
-
-            if (remainingCount > 0) {
-                console.warn(`Inventory full! Could not add ${remainingCount} of ${type}.`);
-                statusText.innerText = "Inventory Full!";
-            }
-        }
-
-        function removeItemFromInventory(type, count) {
-            let removedCount = 0;
-            const removeFromArray = (arr) => {
-                for (let i = arr.length - 1; i >= 0; i--) {
-                    if (arr[i] && arr[i].type === type) {
-                        const toRemove = Math.min(count - removedCount, arr[i].count);
-                        arr[i].count -= toRemove;
-                        removedCount += toRemove;
-                        if (arr[i].count <= 0) {
-                            arr[i] = null;
+                } else if (activeConstructionTool) {
+                    if (dragBrushMode === 'place_blueprint' && cell.state === 'open') {
+                        const cost = toolCosts[activeConstructionTool];
+                        if (foodStockpile >= cost) {
+                            foodStockpile -= cost; updateFoodDisplayHUD();
+                            cell.state = 'blueprint'; cell.blueprintType = activeConstructionTool; cell.assignedAntId = null; cell.buildProgress = 0;
                         }
-                        if (removedCount >= count) return true;
-                    }
-                }
-                return false;
-            };
-
-            if (removeFromArray(hotbarItems)) return;
-            removeFromArray(inventoryItems);
-        }
-
-        function removeItemFromHotbar(slotIndex, count) {
-            if (hotbarItems[slotIndex] && hotbarItems[slotIndex].type === "potato") {
-                hotbarItems[slotIndex].count -= count;
-                if (hotbarItems[slotIndex].count <= 0) {
-                    hotbarItems[slotIndex] = null;
-                }
-            }
-        }
-
-        function resetGame() {
-            player = { ...initialPlayerState };
-            shark = { ...initialSharkState };
-            buildMode = { ...initialBuildModeState };
-            hotbarItems = initialHotbarItems.map(item => item ? { ...item } : null); // Deep copy
-            inventoryItems = initialInventoryItems.map(item => item ? { ...item } : null); // Deep copy
-            dragManager = { ...initialDragManagerState };
-            hookTool = { ...initialHookToolState };
-            raftGrid = {}; 
-            initRaft(); 
-            oceanObjects = []; 
-            oceanObjectSpawnTimer = 0;
-            activeSlot = 0; 
-            keysPressed = {};
-            keyboardMoveVector = { x: 0, y: 0 };
-            combinedMoveVector = { x: 0, y: 0 };
-
-            renderHotbarUI(); 
-            renderInventorySlots();
-            syncHeartsHUD(); 
-            syncHungerThirstHUD();
-            exitBuildMode(); 
-            resetJoystick(); 
-            statusText.innerText = `Active Slot: ${activeSlot + 1} (Hook Selected)`;
-            invScreen.style.display = 'none'; // Ensure inventory is closed
-            craftingMenuScreen.style.display = 'none'; // Ensure crafting menu is closed
-            playersListScreen.style.display = 'none'; // Ensure players list is closed
-            inviteReceivedScreen.style.display = 'none'; // Ensure invite is closed
-            registrationScreen.style.display = registeredCharacterName ? 'none' : 'flex'; // Show registration if not registered
-            registrationError.style.display = 'none';
-            characterNameInput.value = registeredCharacterName || '';
-
-            // Clear PeerJS connection on game reset
-            if (conn) {
-                conn.close();
-                conn = null;
-            }
-            if (peer) {
-                peer.destroy();
-                peer = null;
-            }
-            isHost = false;
-            onlinePlayers = []; // Clear online players list
-            playersOnlineBtn.innerText = `👥 Online (0)`;
-            clearInterval(fetchPlayersInterval);
-            fetchPlayersInterval = null;
-        }
-
-        function update() {
-            // Combine joystick and keyboard input
-            combinedMoveVector.x = moveVector.x + keyboardMoveVector.x;
-            combinedMoveVector.y = moveVector.y + keyboardMoveVector.y;
-
-            // Normalize combined vector if both inputs are active
-            if (combinedMoveVector.x !== 0 && combinedMoveVector.y !== 0) {
-                const length = Math.sqrt(combinedMoveVector.x * combinedMoveVector.x + combinedMoveVector.y * combinedMoveVector.y);
-                combinedMoveVector.x /= length;
-                combinedMoveVector.y /= length;
-            } else if (combinedMoveVector.x === 0 && combinedMoveVector.y === 0) {
-                // If both are zero, ensure it's truly zero
-                combinedMoveVector.x = 0;
-                combinedMoveVector.y = 0;
-            }
-
-            const wasInWater = player.inWater;
-            player.inWater = !isStandingOnRaft(player.x, player.y);
-            
-            if (wasInWater && !player.inWater) { // Just got out of water
-                shark.lastWaterExitTime = Date.now();
-            }
-
-            let currentSpeed = player.inWater ? (BASE_SPEED / 4) : BASE_SPEED;
-
-            // Player movement with collision detection for non-walkable raft objects
-            const targetX = player.x + combinedMoveVector.x * currentSpeed;
-            const targetY = player.y + combinedMoveVector.y * currentSpeed;
-
-            // Check X movement
-            if (isWalkable(targetX, player.y)) {
-                player.x = targetX;
-            }
-            // Check Y movement
-            if (isWalkable(player.x, targetY)) {
-                player.y = targetY;
-            }
-
-            // Hunger and Thirst Decay
-            let currentTime = Date.now();
-            if (currentTime - player.lastStatDecayTime >= 1000) { // Decay every second
-                if (player.hunger > 0) player.hunger -= 0.5 / 2; // Twice as long for hunger
-                if (player.thirst > 0) player.thirst -= 0.7 / 4; // Four times as long for thirst
-                
-                if (player.hunger < 0) player.hunger = 0;
-                if (player.thirst < 0) player.thirst = 0;
-
-                // Health impact from low hunger/thirst
-                if (player.hunger === 0 || player.thirst === 0) {
-                    if (currentTime - player.lastBiteTime >= 2000) { // Lose health every 2 seconds if starving/dehydrated
-                        if (player.health > 0) {
-                            player.health--;
-                            syncHeartsHUD();
+                    } else if (dragBrushMode === 'erase_blueprint' && cell.state === 'blueprint' && cell.blueprintType === activeConstructionTool) {
+                        foodStockpile += toolCosts[activeConstructionTool]; updateFoodDisplayHUD();
+                        if (cell.assignedAntId) {
+                            let worker = antEntitiesList.find(a => a.id === cell.assignedAntId);
+                            if (worker) { worker.activeBuildTarget = null; worker.state = 'idle'; worker.path = null; }
                         }
-                        player.lastBiteTime = currentTime; // Reuse lastBiteTime for general damage timer
+                        cell.state = 'open'; cell.blueprintType = null; cell.assignedAntId = null;
+                    }
+                }
+            });
+
+            const stopDraggingHandler = () => { isMouseButtonDown = false; dragBrushMode = null; };
+            canvas.addEventListener('mouseup', stopDraggingHandler);
+            canvas.addEventListener('mouseleave', stopDraggingHandler);
+
+            canvas.width = viewWidth; canvas.height = viewHeight;
+            refreshDashboardCounters(); runMainSimulationLoop();
+        }
+
+        function hatchAntFromCell(cell) {
+            let sPos = calculateHexUnscaledCenter(cell.row, cell.col);
+            let newId = cell.state + '_spawn_' + Math.floor(Math.random() * 999999);
+            cell.spawnedAntId = newId;
+            cell.eggStatus = 'none';
+            cell.eggProgress = 0;
+            
+            if (cell.state === 'worker_nest') {
+                antEntitiesList.push({
+                    id: newId, type: 'worker', group: 0, pendingGroup: null,
+                    x: sPos.x, y: sPos.y, row: cell.row, col: cell.col, angle: Math.random() * Math.PI * 2, speed: 0.375, 
+                    state: 'idle', path: null, pathIndex: 0, activeDigTarget: null, activeBuildTarget: null, targetFoodRef: null, 
+                    carryingFood: false, targetEggCell: null, carryingEgg: false, buildProgress: 0,
+                    spawnTileRow: cell.row, spawnTileCol: cell.col
+                });
+            } else if (cell.state === 'warrior_nest') {
+                antEntitiesList.push({
+                    id: newId, type: 'warrior', group: 0, pendingGroup: null,
+                    x: sPos.x, y: sPos.y, row: cell.row, col: cell.col, angle: Math.random() * Math.PI * 2, speed: 0.375, 
+                    state: 'idle', path: null, pathIndex: 0, targetFoodRef: null, carryingFood: false,
+                    targetEggCell: null, carryingEgg: false, spawnTileRow: cell.row, spawnTileCol: cell.col
+                });
+            }
+            refreshDashboardCounters();
+        }
+
+        function updateSimulationStateEngine() {
+            if (isGamePaused) return;
+
+            // Instantly hatch eggs on replacement tasks if old ants are dead
+            for (let r = 0; r < totalGridRows; r++) {
+                for (let c = 0; c < totalGridCols; c++) {
+                    let cell = hexMatrixGrid[r][c];
+                    if (cell.state === 'worker_nest' || cell.state === 'warrior_nest') {
+                        if (cell.spawnedAntId) {
+                            let liveAntExists = antEntitiesList.some(a => a.id === cell.spawnedAntId);
+                            if (!liveAntExists) { cell.spawnedAntId = null; }
+                        }
+                        if (cell.eggStatus === 'ready' && !cell.spawnedAntId) {
+                            hatchAntFromCell(cell);
+                        }
+                    }
+                }
+            }
+
+            let globalOpenBlueprints = [];
+            let needyEggCells = [];
+
+            for (let r = 0; r < totalGridRows; r++) {
+                for (let c = 0; c < totalGridCols; c++) {
+                    let cell = hexMatrixGrid[r][c];
+                    if (cell.state === 'blueprint' && !cell.assignedAntId) {
+                        globalOpenBlueprints.push(cell);
+                    }
+                    if ((cell.state === 'worker_nest' || cell.state === 'warrior_nest') && cell.eggStatus === 'none' && !cell.assignedEggCarrierId) {
+                        needyEggCells.push(cell);
+                    }
+                }
+            }
+            
+            let availableLooseFood = looseFoodItems.filter(f => !f.assignedAntId);
+            let globalWorkExists = globalOpenBlueprints.length > 0 || (availableLooseFood.length > 0 && foodStockpile < calculateMaxFoodCapacity()) || markedMiningTasks.length > 0 || needyEggCells.length > 0;
+
+            antEntitiesList.forEach(ant => {
+                if (ant.type === 'queen') return;
+
+                let activeRallyPoint = ant.group > 0 ? groupRallyPoints[ant.group] : null;
+
+                if (ant.group > 0 && activeRallyPoint && (ant.state === 'fetching_egg' || ant.state === 'delivering_egg')) {
+                    if (ant.targetEggCell) ant.targetEggCell.assignedEggCarrierId = null;
+                    ant.targetEggCell = null; ant.carryingEgg = false; ant.state = 'idle'; ant.path = null;
+                }
+
+                let headingHomeToQueen = !ant.activeDigTarget && !ant.activeBuildTarget && !ant.targetFoodRef && !ant.carryingFood && !ant.targetEggCell;
+                if (ant.state === 'marching' && headingHomeToQueen && globalWorkExists && !activeRallyPoint) {
+                    ant.path = null; ant.state = 'idle';
+                }
+
+                if (ant.carryingFood && foodStockpile >= calculateMaxFoodCapacity()) {
+                    ant.carryingFood = false; ant.state = 'idle'; ant.path = null;
+                    looseFoodItems.push({
+                        id: 'food_dropped_' + Math.floor(Math.random() * 999999), row: ant.row, col: ant.col,
+                        x: ant.x, y: ant.y, assignedAntId: null
+                    });
+                }
+
+                if (activeRallyPoint && !ant.carryingFood && ant.state !== 'digging' && ant.state !== 'building') {
+                    let needsNewPath = false;
+                    if (ant.state === 'idle') { needsNewPath = true; } 
+                    else if (ant.path && ant.path.length > 0) {
+                        let finalDest = ant.path[ant.path.length - 1];
+                        if (finalDest.r !== activeRallyPoint.row || finalDest.c !== activeRallyPoint.col) { needsNewPath = true; }
+                    } else if (!ant.path) { needsNewPath = true; }
+
+                    if (needsNewPath && getHexDistance(ant.row, ant.col, activeRallyPoint.row, activeRallyPoint.col) > 3) {
+                        let route = computeHexGridPath(ant.row, ant.col, activeRallyPoint.row, activeRallyPoint.col);
+                        if (route && route.length > 0) { 
+                            ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; 
+                            ant.activeDigTarget = null; ant.activeBuildTarget = null; ant.targetFoodRef = null;
+                        }
                     }
                 }
 
-                syncHungerThirstHUD();
-                player.lastStatDecayTime = currentTime;
-            }
+                const isAvailableForWork = (ant.group === 0 || !activeRallyPoint);
 
-
-            // Ocean Object Spawning
-            oceanObjectSpawnTimer++;
-            if (oceanObjectSpawnTimer >= OCEAN_OBJECT_SPAWN_INTERVAL) {
-                spawnOceanObject();
-                oceanObjectSpawnTimer = 0;
-            }
-
-            // Ocean Object Movement and Removal
-            for (let i = oceanObjects.length - 1; i >= 0; i--) {
-                const obj = oceanObjects[i];
-                obj.y += obj.speed; // Move downwards
-                // Remove if far off screen
-                if (obj.y > player.y + (canvas.height / 2) + 100) {
-                    oceanObjects.splice(i, 1);
+                if (ant.state === 'fetching_egg') {
+                    if (!ant.path) {
+                        let route = computeHexGridPath(ant.row, ant.col, 22, 22);
+                        if (route) { ant.path = route; ant.pathIndex = 0; } 
+                        else {
+                            if (ant.targetEggCell) ant.targetEggCell.assignedEggCarrierId = null;
+                            ant.targetEggCell = null; ant.state = 'idle';
+                        }
+                    }
                 }
-            }
-
-            // --- Hook Tool Mechanics State Tracker Animation ---
-            if (hookTool.state === "CHARGING") {
-                hookTool.chargeTimer++;
-                if (hookTool.ringRadius < 85) {
-                    hookTool.ringRadius += 0.8;
+                if (ant.state === 'delivering_egg') {
+                    if (!ant.path && ant.targetEggCell) {
+                        let route = computeHexGridPath(ant.row, ant.col, ant.targetEggCell.row, ant.targetEggCell.col);
+                        if (route) { ant.path = route; ant.pathIndex = 0; } 
+                        else {
+                            ant.targetEggCell.assignedEggCarrierId = null;
+                            ant.targetEggCell = null; ant.state = 'idle'; ant.carryingEgg = false;
+                        }
+                    }
                 }
-                if (hookTool.chargeTimer > 70) {
-                    hookTool.chargeColor = "green";
-                    hookTool.blinkTimer++;
-                }
-            }
 
-            if (hookTool.state === "THROWN" || hookTool.state === "RETURNING") {
-                // Hook collision with ocean objects (both directions)
-                if (!hookTool.carriedObject) {
-                    const hookCenterX = hookTool.x;
-                    const hookCenterY = hookTool.y;
-                    const hookRadius = hookTool.width / 2; // Approximate collision radius
+                if (ant.state === 'idle') {
+                    let highPriorityTargets = [];
 
-                    for (let i = oceanObjects.length - 1; i >= 0; i--) {
-                        const obj = oceanObjects[i];
+                    // SMOOTH THINKING: Filter targets dynamically in real-time so ants never duplicate claims
+                    if (foodStockpile < calculateMaxFoodCapacity()) {
+                        let maxFoodDist = (ant.group > 0 && activeRallyPoint) ? 3 : 999999;
+                        let openFood = looseFoodItems.filter(f => !f.assignedAntId);
+                        if (maxFoodDist === 3) openFood = openFood.filter(f => getHexDistance(ant.row, ant.col, f.row, f.col) <= 3);
+                        openFood.forEach(f => {
+                            highPriorityTargets.push({ type: 'food', target: f, dist: getHexDistance(ant.row, ant.col, f.row, f.col) });
+                        });
+                    }
+
+                    if (isAvailableForWork && ant.type === 'worker') {
+                        let openBPs = globalOpenBlueprints.filter(bp => !bp.assignedAntId);
+                        openBPs.forEach(bp => {
+                            highPriorityTargets.push({ type: 'blueprint', target: bp, dist: getHexDistance(ant.row, ant.col, bp.row, bp.col) });
+                        });
+                        let openEggs = needyEggCells.filter(cell => !cell.assignedEggCarrierId);
+                        openEggs.forEach(cell => {
+                            highPriorityTargets.push({ type: 'egg_need', target: cell, dist: getHexDistance(ant.row, ant.col, cell.row, cell.col) });
+                        });
+                    }
+
+                    if (highPriorityTargets.length > 0) {
+                        highPriorityTargets.sort((a, b) => a.dist - b.dist);
+                        let chosen = highPriorityTargets[0];
+
+                        if (chosen.type === 'food' && !chosen.target.assignedAntId) {
+                            let targetFood = chosen.target;
+                            let route = computeHexGridPath(ant.row, ant.col, targetFood.row, targetFood.col);
+                            if (route) {
+                                targetFood.assignedAntId = ant.id; ant.targetFoodRef = targetFood;
+                                if (route.length === 0) {
+                                    looseFoodItems = looseFoodItems.filter(f => f.id !== targetFood.id);
+                                    ant.targetFoodRef = null; ant.carryingFood = true;
+                                    routeFoodPelletHome(ant);
+                                } else {
+                                    ant.path = route; ant.pathIndex = 0; ant.state = 'marching';
+                                    ant.activeDigTarget = null; ant.activeBuildTarget = null;
+                                }
+                                return;
+                            }
+                        } else if (chosen.type === 'blueprint' && !chosen.target.assignedAntId) {
+                            let targetBP = chosen.target;
+                            let route = computeHexGridPath(ant.row, ant.col, targetBP.row, targetBP.col);
+                            if (route) {
+                                targetBP.assignedAntId = ant.id; ant.activeBuildTarget = targetBP;
+                                if (route.length === 0) { ant.path = null; ant.state = 'building'; ant.buildProgress = 0; } 
+                                else { ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; }
+                                return;
+                            }
+                        } else if (chosen.type === 'egg_need' && !chosen.target.assignedEggCarrierId) {
+                            let targetCell = chosen.target;
+                            let route = computeHexGridPath(ant.row, ant.col, 22, 22);
+                            if (route) {
+                                targetCell.assignedEggCarrierId = ant.id; ant.targetEggCell = targetCell; ant.state = 'fetching_egg';
+                                if (route.length === 0) {
+                                    ant.carryingEgg = true; ant.state = 'delivering_egg';
+                                    let delivRoute = computeHexGridPath(ant.row, ant.col, targetCell.row, targetCell.col);
+                                    if (delivRoute) { ant.path = delivRoute; ant.pathIndex = 0; } 
+                                    else { targetCell.assignedEggCarrierId = null; ant.targetEggCell = null; ant.state = 'idle'; ant.carryingEgg = false; }
+                                } else { ant.path = route; ant.pathIndex = 0; }
+                                return;
+                            }
+                        }
+                    }
+
+                    if (isAvailableForWork && ant.type === 'worker' && markedMiningTasks.length > 0) {
+                        let tasksWithDist = markedMiningTasks.map(t => ({ task: t, dist: getHexDistance(ant.row, ant.col, t.row, t.col) }));
+                        tasksWithDist.sort((a, b) => a.dist - b.dist);
+                        let minDist = tasksWithDist[0].dist; let candidates = tasksWithDist.filter(t => t.dist === minDist);
+                        let chosenTask = candidates[Math.floor(Math.random() * candidates.length)].task;
                         
-                        // Simple AABB collision check (hook as a circle, object as a rect)
-                        let testX = hookCenterX;
-                        let testY = hookCenterY;
+                        let route = getPathToAdjacentWalkableTile(ant.row, ant.col, chosenTask.row, chosenTask.col);
+                        if (route) {
+                            ant.activeDigTarget = chosenTask;
+                            if (route.length === 0) { ant.path = null; ant.state = 'digging'; ant.digProgress = 0; } 
+                            else { ant.path = route; ant.pathIndex = 0; ant.state = 'marching'; }
+                            return;
+                        }
+                    }
 
-                        if (hookCenterX < obj.x) testX = obj.x;
-                        else if (hookCenterX > obj.x + obj.width) testX = obj.x + obj.width;
-                        if (hookCenterY < obj.y) testY = obj.y;
-                        else if (hookCenterY > obj.y + obj.height) testY = obj.y + obj.height;
-
-                        let distX = hookCenterX - testX;
-                        let distY = hookCenterY - testY;
-                        let distance = Math.sqrt((distX * distX) + (distY * distY));
-
-                        if (distance <= hookRadius) {
-                            hookTool.state = "RETURNING";
-                            hookTool.carriedObject = obj;
-                            oceanObjects.splice(i, 1); // Remove from floating objects
-                            break; // Only pick up one object at a time
+                    if (!globalWorkExists || (ant.group > 0 && groupRallyPoints[ant.group])) {
+                        let homeR = 22, homeC = 22;
+                        if (ant.group > 0 && groupRallyPoints[ant.group]) { homeR = groupRallyPoints[ant.group].row; homeC = groupRallyPoints[ant.group].col; }
+                        
+                        if (getHexDistance(ant.row, ant.col, homeR, homeC) > 2) {
+                            let homeRoute = computeHexGridPath(ant.row, ant.col, homeR, homeC);
+                            if (homeRoute && homeRoute.length > 0) { ant.path = homeRoute; ant.pathIndex = 0; ant.state = 'marching'; return; }
                         }
                     }
                 }
-            }
 
-            if (hookTool.state === "THROWN") {
-                let dx = hookTool.targetX - hookTool.x;
-                let dy = hookTool.targetY - hookTool.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist > 6) {
-                    let angle = Math.atan2(dy, dx);
-                    hookTool.x += Math.cos(angle) * hookTool.speed;
-                    hookTool.y += Math.sin(angle) * hookTool.speed;
-                } else {
-                    hookTool.state = "RETURNING";
+                if (ant.path && ant.path.length > 0) {
+                    if (ant.pathIndex < ant.path.length) {
+                        let dest = ant.path[ant.pathIndex];
+                        if (!evaluateTilePassableState(dest.r, dest.c)) { 
+                            ant.path = null; ant.state = 'idle'; 
+                            if (ant.targetFoodRef) { ant.targetFoodRef.assignedAntId = null; ant.targetFoodRef = null; }
+                            if (ant.targetEggCell) { ant.targetEggCell.assignedEggCarrierId = null; ant.targetEggCell = null; ant.carryingEgg = false; }
+                            return; 
+                        }
+
+                        let nCenter = calculateHexUnscaledCenter(dest.r, dest.c); let distLeft = Math.hypot(nCenter.x - ant.x, nCenter.y - ant.y);
+                        
+                        let sepVectorX = 0, sepVectorY = 0; let proximateNeighbors = 0;
+                        antEntitiesList.forEach(otherAnt => {
+                            if (otherAnt.id !== ant.id && otherAnt.type !== 'queen') {
+                                let separationDistance = Math.hypot(otherAnt.x - ant.x, otherAnt.y - ant.y);
+                                if (separationDistance > 0 && separationDistance < 10) {
+                                    sepVectorX += (ant.x - otherAnt.x) / separationDistance;
+                                    sepVectorY += (ant.y - otherAnt.y) / separationDistance;
+                                    proximateNeighbors++;
+                                }
+                            }
+                        });
+
+                        let updatedKinematicVelocity = ant.speed;
+                        if (proximateNeighbors > 0) { updatedKinematicVelocity *= 0.75; }
+
+                        if (distLeft > updatedKinematicVelocity) {
+                            ant.angle = Math.atan2(nCenter.y - ant.y, nCenter.x - ant.x);
+                            let directionalStepX = Math.cos(ant.angle) * updatedKinematicVelocity;
+                            let directionalStepY = Math.sin(ant.angle) * updatedKinematicVelocity;
+                            
+                            if (proximateNeighbors > 0) {
+                                directionalStepX += (sepVectorX / proximateNeighbors) * 0.12;
+                                directionalStepY += (sepVectorY / proximateNeighbors) * 0.12;
+                            }
+                            ant.x += directionalStepX; ant.y += directionalStepY;
+                        } else { ant.x = nCenter.x; ant.y = nCenter.y; ant.row = dest.r; ant.col = dest.c; ant.pathIndex++; }
+                    } else {
+                        ant.path = null;
+                        
+                        if (ant.state === 'fetching_egg') {
+                            ant.carryingEgg = true; ant.state = 'delivering_egg';
+                            if (ant.targetEggCell) {
+                                let delivRoute = computeHexGridPath(ant.row, ant.col, ant.targetEggCell.row, ant.targetEggCell.col);
+                                if (delivRoute) { ant.path = delivRoute; ant.pathIndex = 0; } 
+                                else { ant.targetEggCell.assignedEggCarrierId = null; ant.targetEggCell = null; ant.state = 'idle'; ant.carryingEgg = false; }
+                            } else { ant.state = 'idle'; ant.carryingEgg = false; }
+                        } else if (ant.state === 'delivering_egg') {
+                            if (ant.targetEggCell && (ant.targetEggCell.state === 'worker_nest' || ant.targetEggCell.state === 'warrior_nest') && ant.targetEggCell.eggStatus === 'none') {
+                                ant.targetEggCell.eggStatus = 'ready';
+                                ant.targetEggCell.eggProgress = 0; ant.targetEggCell.assignedEggCarrierId = null;
+                            } else if (ant.targetEggCell) { ant.targetEggCell.assignedEggCarrierId = null; }
+                            ant.carryingEgg = false; ant.targetEggCell = null; ant.state = 'idle';
+                        } else if (ant.targetFoodRef) {
+                            let foodId = ant.targetFoodRef.id;
+                            let stillExists = looseFoodItems.some(f => f.id === foodId);
+                            if (stillExists && foodStockpile < calculateMaxFoodCapacity()) {
+                                looseFoodItems = looseFoodItems.filter(f => f.id !== foodId);
+                                ant.carryingFood = true;
+                                routeFoodPelletHome(ant);
+                            } else {
+                                ant.targetFoodRef.assignedAntId = null; ant.targetFoodRef = null; ant.state = 'idle';
+                            }
+                        } else if (ant.carryingFood) {
+                            if (foodStockpile < calculateMaxFoodCapacity()) { foodStockpile = Math.min(calculateMaxFoodCapacity(), foodStockpile + 25); }
+                            ant.carryingFood = false; ant.state = 'idle'; updateFoodDisplayHUD();
+                        } else if (ant.activeBuildTarget && isAvailableForWork) { ant.state = 'building'; ant.buildProgress = 0; } 
+                        else if (ant.activeDigTarget && isAvailableForWork) { ant.state = 'digging'; ant.digProgress = 0; } 
+                        else { ant.state = 'idle'; }
+                    }
+                    return;
                 }
-            }
 
-            if (hookTool.state === "RETURNING") {
-                let dx = player.x - hookTool.x;
-                let dy = player.y - hookTool.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist > 10) {
-                    let angle = Math.atan2(dy, dx);
-                    hookTool.x += Math.cos(angle) * hookTool.returnSpeed;
-                    hookTool.y += Math.sin(angle) * hookTool.returnSpeed;
-                } else {
-                    // Hook reached player
-                    if (hookTool.carriedObject) {
-                        if (hookTool.carriedObject.type === "barrel" && hookTool.carriedObject.contents) {
-                            hookTool.carriedObject.contents.forEach(item => {
-                                addItemToInventory(item.type, item.count);
-                            });
-                            statusText.innerText = `Collected barrel contents!`;
+                if (ant.state === 'building' && ant.activeBuildTarget) {
+                    const bCell = ant.activeBuildTarget;
+                    if (bCell.state !== 'blueprint') { ant.activeBuildTarget = null; ant.state = 'idle'; return; }
+                    let bCenter = calculateHexUnscaledCenter(bCell.row, bCell.col); ant.angle = Math.atan2(bCenter.y - ant.y, bCenter.x - ant.x);
+                    
+                    ant.buildProgress++;
+                    if (ant.buildProgress >= 300) {
+                        bCell.state = bCell.blueprintType; bCell.assignedAntId = null;
+                        bCell.eggStatus = 'none'; bCell.eggProgress = 0; bCell.spawnedAntId = null;
+                        
+                        ant.activeBuildTarget = null;
+                        
+                        // INTELLECTUAL HANDOFF: The exact ant that completes the cell immediately fetches the egg!
+                        if (bCell.state === 'worker_nest' || bCell.state === 'warrior_nest') {
+                            bCell.assignedEggCarrierId = ant.id;
+                            ant.targetEggCell = bCell;
+                            ant.state = 'fetching_egg';
+                            ant.path = null;
                         } else {
-                            addItemToInventory(hookTool.carriedObject.type, 1);
-                            statusText.innerText = `Collected: ${hookTool.carriedObject.type}`;
+                            ant.state = 'idle';
                         }
-                        renderInventorySlots();
-                        renderHotbarUI();
-                        hookTool.carriedObject = null; // Drop the object
+                        
+                        if (ant.pendingGroup) { ant.group = ant.pendingGroup; ant.pendingGroup = null; }
+                        refreshDashboardCounters();
                     }
-                    hookTool.state = "IDLE";
-                }
-                // Update carried object position to follow hook
-                if (hookTool.carriedObject) {
-                    hookTool.carriedObject.x = hookTool.x - hookTool.carriedObject.width / 2;
-                    hookTool.carriedObject.y = hookTool.y - hookTool.carriedObject.height / 2;
-                }
-            }
-
-            // --- Shark Smart State Machine Manager ---
-            if (player.inWater) {
-                shark.lastWaterExitTime = 0; // Reset timer if player is in water
-                if (shark.state === "HIDDEN" || shark.state === "RETREATING") {
-                    shark.state = "WAITING";
-                    shark.timer = 0; 
+                    return;
                 }
 
-                if (shark.state === "WAITING") {
-                    shark.timer++;
-                    if (shark.timer >= 180) { // Wait 3 seconds
-                        if (!shark.active) {
-                            const spawnPos = getOffscreenPosition();
-                            shark.x = spawnPos.x;
-                            shark.y = spawnPos.y;
-                            shark.active = true;
+                if (ant.state === 'digging' && ant.activeDigTarget) {
+                    if (ant.activeDigTarget.state !== 'dirt') { 
+                        ant.activeDigTarget = null; ant.state = 'idle'; 
+                        if (ant.pendingGroup) { ant.group = ant.pendingGroup; ant.pendingGroup = null; refreshDashboardCounters(); }
+                        return; 
+                    }
+                    let tCenter = calculateHexUnscaledCenter(ant.activeDigTarget.row, ant.activeDigTarget.col); ant.angle = Math.atan2(tCenter.y - ant.y, tCenter.x - ant.x);
+                    let coops = antEntitiesList.filter(a => a.state === 'digging' && a.activeDigTarget === ant.activeDigTarget).length;
+                    
+                    ant.digProgress += 1 * coops;
+                    
+                    if (ant.digProgress >= 350) { 
+                        let brokenTile = ant.activeDigTarget;
+                        let companions = antEntitiesList.filter(a => a.state === 'digging' && a.activeDigTarget === brokenTile);
+
+                        if (brokenTile.isMysteryFood) {
+                            brokenTile.isMysteryFood = false;
+                            let localNodes = getHexNeighbors(brokenTile.row, brokenTile.col);
+                            let options = [brokenTile, ...localNodes];
+                            
+                            options.forEach(n => {
+                                hexMatrixGrid[n.row][n.col].state = 'open';
+                                markedMiningTasks = markedMiningTasks.filter(t => t.row !== n.row || t.col !== n.col);
+                            });
+                            
+                            let nuggetsCount = Math.floor(Math.random() * 11) + 5; 
+                            for(let j=0; j<nuggetsCount; j++) {
+                                let pickTile = options[Math.floor(Math.random() * options.length)];
+                                let tc = calculateHexUnscaledCenter(pickTile.row, pickTile.col);
+                                looseFoodItems.push({
+                                    id: 'food_' + Math.floor(Math.random() * 999999) + '_' + j, row: pickTile.row, col: pickTile.col,
+                                    x: tc.x + (Math.random() * 8 - 4), y: tc.y + (Math.random() * 8 - 4), assignedAntId: null
+                                });
+                            }
                         }
-                        shark.targetX = player.x;
-                        shark.targetY = player.y;
-                        shark.state = "CHASING";
+
+                        brokenTile.state = 'open';
+                        markedMiningTasks = markedMiningTasks.filter(t => t.row !== brokenTile.row || t.col !== brokenTile.col);
+
+                        companions.forEach(comp => {
+                            comp.activeDigTarget = null; comp.state = 'idle'; comp.path = null;
+                            if (comp.pendingGroup) { comp.group = comp.pendingGroup; comp.pendingGroup = null; }
+                        });
+
+                        refreshDashboardCounters();
                     }
-                }
-            } else { // Player is on raft
-                if (shark.state === "CHASING") {
-                    shark.state = "RETREATING";
-                    const escapePoint = getOffscreenPosition();
-                    shark.targetX = escapePoint.x;
-                    shark.targetY = escapePoint.y;
+                    return;
                 }
 
-                if (shark.state === "WAITING") { // If player gets out while shark is waiting
-                    shark.state = "HIDDEN";
-                }
-
-                if (shark.state === "RETREATING" && !shark.active && shark.lastWaterExitTime > 0 && (currentTime - shark.lastWaterExitTime >= 10000)) { // 10 seconds after leaving water
-                    shark.state = "HIDDEN";
-                    shark.active = false;
-                    shark.offscreenTimer = 0;
-                }
-            }
-
-            if (shark.state === "CHASING" || shark.state === "RETREATING") {
-                let dx = shark.targetX - shark.x;
-                let dy = shark.targetY - shark.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-                shark.angle = Math.atan2(dy, dx);
-
-                let currentSharkSpeed = (shark.state === "RETREATING") ? (shark.speed * 1.5) : shark.speed;
-
-                if (dist > 2) {
-                    shark.x += Math.cos(shark.angle) * currentSharkSpeed;
-                    shark.y += Math.sin(shark.angle) * currentSharkSpeed;
-                }
-
-                // --- SHARK ATTACK / BITE LOOP ---
-                if (shark.state === "CHASING" && dist < 18) {
-                    let currentTime = Date.now();
-                    if (currentTime - player.lastBiteTime >= 1000) { // Every 1 whole second
-                        if (player.health > 0) {
-                            player.health--;
-                            syncHeartsHUD();
+                if (ant.state === 'idle') {
+                    let centerR = 22, centerC = 22;
+                    if (ant.group > 0 && groupRallyPoints[ant.group]) { centerR = groupRallyPoints[ant.group].row; centerC = groupRallyPoints[ant.group].col; }
+                    
+                    if (Math.random() < 0.04) {
+                        let surroundings = getHexNeighbors(ant.row, ant.col).filter(n => evaluateTilePassableState(n.row, n.col) && getHexDistance(n.row, n.col, centerR, centerC) <= 3);
+                        if (surroundings.length > 0) {
+                            let cell = surroundings[Math.floor(Math.random() * surroundings.length)];
+                            ant.path = [{ r: cell.row, c: cell.col }]; ant.pathIndex = 0; ant.state = 'marching';
                         }
-                        player.lastBiteTime = currentTime;
                     }
                 }
-            }
-
-            let sOffsetX = canvas.width / 2 - player.x;
-            let sOffsetY = canvas.height / 2 - player.y;
-            let sharkRenderX = shark.x + sOffsetX;
-            let sharkRenderY = shark.y + sOffsetY;
-            let isOffscreen = (sharkRenderX < -120 || sharkRenderX > canvas.width + 120 || sharkRenderY < -120 || sharkRenderY > canvas.height + 120);
-
-            if (isOffscreen && shark.active && shark.state === "RETREATING") {
-                shark.offscreenTimer++;
-                if (shark.offscreenTimer >= 180) { // 3 seconds offscreen
-                    shark.state = "HIDDEN";
-                    shark.active = false;
-                    shark.offscreenTimer = 0;
-                }
-            } else {
-                shark.offscreenTimer = 0; 
-            }
-
-            if (buildMode.active) {
-                const worldTouchX = buildMode.touchX - (canvas.width / 2 - player.x);
-                const worldTouchY = buildMode.touchY - (canvas.height / 2 - player.y);
-                
-                // Only update gridX/Y if touch is significantly off center to avoid jitter
-                if (Math.abs(buildMode.touchX - canvas.width/2) > 40 || Math.abs(buildMode.touchY - canvas.height/2) > 40) {
-                    buildMode.gridX = Math.floor(worldTouchX / TILE_SIZE);
-                    buildMode.gridY = Math.floor(worldTouchY / TILE_SIZE);
-                }
-
-                // Build mode validation
-                const targetKey = getGridKey(buildMode.gridX, buildMode.gridY);
-                const isOccupied = raftGrid[targetKey];
-                
-                let hasResources = false;
-                const recipe = CRAFTING_RECIPES[buildMode.buildItemType];
-                if (recipe) {
-                    hasResources = recipe.cost.every(costItem => getItemCount(costItem.type) >= costItem.count);
-                } else if (buildMode.buildItemType === 'raft_piece') {
-                    hasResources = getItemCount("wood") >= 2;
-                }
-
-                // Check adjacency: must be next to an existing raft piece
-                let isAdjacent = false;
-                const adjacentCoords = [
-                    getGridKey(buildMode.gridX + 1, buildMode.gridY),
-                    getGridKey(buildMode.gridX - 1, buildMode.gridY),
-                    getGridKey(buildMode.gridX, buildMode.gridY + 1),
-                    getGridKey(buildMode.gridX, buildMode.gridY - 1)
-                ];
-                for (const adjKey of adjacentCoords) {
-                    if (raftGrid[adjKey] && raftGrid[adjKey].type === 'raft_piece') {
-                        isAdjacent = true;
-                        break;
-                    }
-                }
-
-                buildMode.isValidPlacement = !isOccupied && isAdjacent;
-                buildMode.hasEnoughResources = hasResources;
-            }
-            updateHandButton(); // Update hand button text/icon dynamically
+            });
         }
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const offsetX = canvas.width / 2 - player.x;
-            const offsetY = canvas.height / 2 - player.y;
 
-            // 1. SHARK UNDERWATER LAYER (only visible when chasing)
-            if (shark.active && (shark.state === "CHASING" || shark.state === "RETREATING")) {
-                const sx = shark.x + offsetX;
-                const sy = shark.y + offsetY;
-                ctx.save();
-                ctx.translate(sx, sy);
-                ctx.rotate(shark.angle);
-                ctx.fillStyle = (shark.state === "CHASING") ? '#b53333' : '#4a6572'; 
-                ctx.beginPath();
-                ctx.moveTo(-16, 0);
-                ctx.lineTo(0, -10);
-                ctx.lineTo(16, 0);
-                ctx.lineTo(0, 10);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(6, -5, 2, 2);
-                ctx.fillRect(6, 3, 2, 2);
+        function routeFoodPelletHome(ant) {
+            let storageCells = [];
+            for(let r=0; r<totalGridRows; r++) {
+                for(let c=0; c<totalGridCols; c++) { if (hexMatrixGrid[r][c].state === 'food_cell') storageCells.push({r, c}); }
+            }
+            if (storageCells.length > 0) {
+                storageCells.sort((a,b) => getHexDistance(ant.row, ant.col, a.r, a.c) - getHexDistance(ant.row, ant.col, b.r, b.c));
+                let bestStore = storageCells[0]; let returnRoute = computeHexGridPath(ant.row, ant.col, bestStore.r, bestStore.c);
+                if (returnRoute && returnRoute.length > 0) { ant.path = returnRoute; ant.pathIndex = 0; ant.state = 'marching'; }
+                else { if (foodStockpile < calculateMaxFoodCapacity()) { foodStockpile = Math.min(calculateMaxFoodCapacity(), foodStockpile + 25); } ant.carryingFood = false; ant.state = 'idle'; updateFoodDisplayHUD(); }
+            } else { ant.carryingFood = false; ant.state = 'idle'; }
+        }
+
+        function drawSimulationFrameContext() {
+            ctx.clearRect(0, 0, viewWidth, viewHeight);
+
+            for (let r = 0; r < totalGridRows; r++) {
+                for (let c = 0; c < totalGridCols; c++) {
+                    const cell = hexMatrixGrid[r][c]; const unscaledCenter = calculateHexUnscaledCenter(r, c);
+                    const screenX = viewWidth / 2 + (unscaledCenter.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
+                    const screenY = viewHeight / 2 + (unscaledCenter.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
+                    if (screenX < -25 || screenX > viewWidth + 25 || screenY < -25 || screenY > viewHeight + 25) continue;
+
+                    if (cell.state === 'wall') ctx.fillStyle = '#0a0a0d';
+                    else if (cell.state === 'dirt') ctx.fillStyle = '#8f633c';
+                    else if (cell.state === 'open') ctx.fillStyle = '#2b1a0f';
+                    else if (cell.state === 'blueprint') ctx.fillStyle = '#3c3530';
+                    else if (cell.state === 'worker_nest') ctx.fillStyle = '#6b4c31';
+                    else if (cell.state === 'warrior_nest') ctx.fillStyle = '#592c28';
+                    else if (cell.state === 'food_cell') ctx.fillStyle = '#1d3825';
+
+                    drawHexagonalOutlineShape(screenX, screenY, hexRadius * currentZoomFactor); ctx.fill();
+
+                    if (cell.state === 'dirt') { ctx.strokeStyle = '#734e2e'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); }
+                    else if (cell.state === 'blueprint') { ctx.strokeStyle = '#ffa500'; ctx.lineWidth = 0.6 * currentZoomFactor; ctx.stroke(); }
+                    else if (cell.state === 'food_cell') { ctx.strokeStyle = '#274d33'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); }
+                    else { ctx.strokeStyle = '#1a100a'; ctx.lineWidth = 0.4 * currentZoomFactor; ctx.stroke(); }
+
+                    if (cell.state === 'dirt' && cell.isMysteryFood) {
+                        ctx.save(); ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                        ctx.font = `bold ${Math.floor(11 * currentZoomFactor)}px 'Orbitron'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText('?', screenX, screenY); ctx.restore();
+                    }
+
+                    if (['worker_nest', 'warrior_nest', 'food_cell', 'blueprint'].includes(cell.state)) {
+                        let labelIcon = ''; let typeStr = cell.state === 'blueprint' ? cell.blueprintType : cell.state;
+                        if (typeStr === 'worker_nest') labelIcon = '🥚'; if (typeStr === 'warrior_nest') labelIcon = '⚔️'; if (typeStr === 'food_cell') labelIcon = '🍗';
+                        
+                        ctx.save(); ctx.fillStyle = cell.state === 'blueprint' ? 'rgba(255,255,255,0.3)' : '#ffffff';
+                        ctx.font = `${Math.floor(10 * currentZoomFactor)}px Roboto`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(labelIcon, screenX, screenY); ctx.restore();
+                    }
+
+                    if ((cell.state === 'worker_nest' || cell.state === 'warrior_nest') && cell.eggStatus === 'ready') {
+                        ctx.save(); ctx.fillStyle = '#f5f6f8'; ctx.strokeStyle = '#a6acb5'; ctx.lineWidth = 0.5 * currentZoomFactor;
+                        ctx.beginPath(); ctx.ellipse(screenX + 3.5 * currentZoomFactor, screenY + 3.5 * currentZoomFactor, 2.3 * currentZoomFactor, 1.6 * currentZoomFactor, Math.PI / 4, 0, Math.PI * 2);
+                        ctx.fill(); ctx.stroke(); ctx.restore();
+                    }
+                }
+            }
+
+            looseFoodItems.forEach(food => {
+                let sx = viewWidth / 2 + (food.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
+                let sy = viewHeight / 2 + (food.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
+                if (sx < -10 || sx > viewWidth + 10 || sy < -10 || sy > viewWidth + 10) return;
+                ctx.save(); ctx.beginPath(); ctx.arc(sx, sy, 2.5 * currentZoomFactor, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffbd59'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); ctx.restore();
+            });
+
+            markedMiningTasks.forEach(task => {
+                let center = calculateHexUnscaledCenter(task.row, task.col);
+                let sx = viewWidth / 2 + (center.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
+                let sy = viewHeight / 2 + (center.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
+                ctx.save(); ctx.fillStyle = 'rgba(243, 156, 18, 0.7)';
+                drawHexagonalOutlineShape(sx, sy, hexRadius * currentZoomFactor); ctx.fill(); ctx.restore();
+            });
+
+            for (let gNum = 1; gNum <= 6; gNum++) {
+                let point = groupRallyPoints[gNum];
+                if (point) {
+                    let center = calculateHexUnscaledCenter(point.row, point.col);
+                    let sx = viewWidth / 2 + (center.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
+                    let sy = viewHeight / 2 + (center.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
+                    ctx.save(); ctx.beginPath(); ctx.arc(sx, sy, hexRadius * 1.1 * currentZoomFactor, 0, Math.PI * 2);
+                    ctx.strokeStyle = groupColorHexes[gNum]; ctx.lineWidth = 2.5; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(sx, sy, 4.5 * currentZoomFactor, 0, Math.PI * 2); ctx.fillStyle = groupColorHexes[gNum]; ctx.fill();
+                    ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.floor(9 * currentZoomFactor)}px 'Orbitron'`;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(gNum, sx, sy); ctx.restore();
+                }
+            }
+
+            antEntitiesList.forEach(ant => {
+                let sx = viewWidth / 2 + (ant.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
+                let sy = viewHeight / 2 + (ant.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
+                if (sx < -25 || sx > viewWidth + 25 || sy < -25 || sy > viewHeight + 25) return;
+
+                ctx.save(); ctx.translate(sx, sy); ctx.rotate(ant.angle);
+                let scale = (ant.type === 'queen' ? 1.9 : (ant.type === 'warrior' ? 1.05 : 0.8)) * currentZoomFactor;
+                let primaryColor = ant.type === 'queen' ? '#611612' : (ant.type === 'warrior' ? '#b82c23' : '#ca8332');
+                let accentColor = ant.type === 'queen' ? '#46100d' : (ant.type === 'warrior' ? '#78150f' : '#a36420');
+
+                ctx.strokeStyle = '#000'; ctx.lineWidth = ant.type === 'queen' ? 1.8 : 0.8;
+                [-1.8, -1.3, -0.9, 0.9, 1.3, 1.8].forEach(ang => {
+                    ctx.beginPath(); ctx.moveTo(-1 * scale, 0);
+                    let jx = -1 * scale + (3.5 * scale) * Math.cos(ang), jy = (3.5 * scale) * Math.sin(ang);
+                    ctx.lineTo(jx, jy); ctx.lineTo(jx + (4 * scale) * Math.cos(ang), jy + (4 * scale) * Math.sin(ang)); ctx.stroke();
+                });
+
+                ctx.fillStyle = primaryColor; ctx.beginPath(); ctx.arc(-4.5 * scale, 0, 4.2 * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = accentColor; ctx.beginPath(); ctx.arc(-0.8 * scale, 0, 2.3 * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = ant.type === 'warrior' ? '#ff3b30' : primaryColor; ctx.beginPath(); ctx.arc(2.2 * scale, 0, (ant.type === 'warrior' ? 2.7 : 2.0) * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+                if (ant.type === 'warrior') {
+                    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.9 * currentZoomFactor;
+                    ctx.beginPath(); ctx.arc(3.4 * scale, 1 * scale, 1.4 * scale, -Math.PI/2, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(3.4 * scale, -1 * scale, 1.4 * scale, 0, Math.PI/2); ctx.stroke();
+                }
+
+                if (ant.carryingFood) {
+                    ctx.fillStyle = '#ffbd59'; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.5 * currentZoomFactor;
+                    ctx.beginPath(); ctx.arc(4.2 * scale, 0, 1.6 * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                }
+
+                if (ant.carryingEgg) {
+                    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#b0b5bd'; ctx.lineWidth = 0.5 * currentZoomFactor;
+                    ctx.beginPath(); ctx.ellipse(4.2 * scale, 0, 1.7 * scale, 1.2 * scale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                }
                 ctx.restore();
-            }
+            });
 
-            // 2. OCEAN OBJECTS LAYER
-            for (const obj of oceanObjects) {
-                const ox = obj.x + offsetX;
-                const oy = obj.y + offsetY;
-                ctx.fillStyle = obj.color;
-                ctx.fillRect(ox, oy, obj.width, obj.height);
-                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(ox, oy, obj.width, obj.height);
-                // Draw icon for barrel
-                if (obj.type === 'barrel') {
-                    ctx.font = '16px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = 'white';
-                    ctx.fillText(getItemIcon(obj.type), ox + obj.width / 2, oy + obj.height / 2);
-                }
-            }
-
-            // 3. ROPE THROWING ATTACHMENT LINE
-            if (hookTool.state === "THROWN" || hookTool.state === "RETURNING") {
-                ctx.strokeStyle = '#d7ccc8'; 
-                ctx.lineWidth = 2.5;
-                ctx.beginPath();
-                ctx.moveTo(canvas.width / 2, canvas.height / 2); 
-                ctx.lineTo(hookTool.x + offsetX, hookTool.y + offsetY);
-                ctx.stroke();
-            }
-
-            // 4. RAFT TILE BLOCKS RENDER LAYER
-            for (let key in raftGrid) {
-                const obj = raftGrid[key];
-                const coords = key.split(',');
-                const gx = parseInt(coords[0]);
-                const gy = parseInt(coords[1]);
-
-                const rx = gx * TILE_SIZE + offsetX;
-                const ry = gy * TILE_SIZE + offsetY;
-
-                if (rx + TILE_SIZE > 0 && rx < canvas.width && ry + TILE_SIZE > 0 && ry < canvas.height) {
-                    if (obj.type === 'raft_piece') {
-                        ctx.fillStyle = '#b38659'; 
-                        ctx.strokeStyle = '#664d33'; 
-                        ctx.lineWidth = 2;
-                        ctx.fillRect(rx, ry, TILE_SIZE, TILE_SIZE);
-                        ctx.strokeRect(rx, ry, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                        ctx.fillRect(rx + 2, ry + 4, TILE_SIZE - 4, 6);
-                        ctx.fillRect(rx + 2, ry + 18, TILE_SIZE - 4, 6);
-                    } else if (obj.type === 'crafting_table') {
-                        ctx.fillStyle = '#8B4513'; // Darker wood for table
-                        ctx.strokeStyle = '#5a3a1c';
-                        ctx.lineWidth = 2;
-                        ctx.fillRect(rx, ry, TILE_SIZE, TILE_SIZE);
-                        ctx.strokeRect(rx, ry, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = '#4a2c1a'; // Tabletop color
-                        ctx.fillRect(rx + 2, ry + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-                        ctx.font = '16px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillStyle = 'white';
-                        ctx.fillText(getItemIcon(obj.type), rx + TILE_SIZE / 2, ry + TILE_SIZE / 2);
-                    }
-                }
-            }
-
-            // 5. BUILD PREVIEW INDICATOR SYSTEM
-            if (buildMode.active) {
-                const bx = buildMode.gridX * TILE_SIZE + offsetX;
-                const by = buildMode.gridY * TILE_SIZE + offsetY;
-
-                let fillColor = 'rgba(46, 204, 113, 0.4)'; // Green for valid
-                let strokeColor = '#2ecc71';
-                if (!buildMode.isValidPlacement || !buildMode.hasEnoughResources) {
-                    fillColor = 'rgba(231, 76, 60, 0.4)'; // Red for invalid
-                    strokeColor = '#e74c3c';
-                }
-
-                ctx.fillStyle = fillColor;
-                ctx.strokeStyle = strokeColor;
-                ctx.lineWidth = 3;
-                ctx.fillRect(bx, by, TILE_SIZE, TILE_SIZE);
-                ctx.strokeRect(bx, by, TILE_SIZE, TILE_SIZE);
-                
-                // Draw icon for the item being built
-                ctx.font = '16px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = 'white';
-                ctx.fillText(getItemIcon(buildMode.buildItemType), bx + TILE_SIZE / 2, by + TILE_SIZE / 2);
-            }
-
-            // 6. SMALL GRAY HOOK BOX TOOL PROFILE OBJECT
-            if (hookTool.state === "THROWN" || hookTool.state === "RETURNING") {
-                const hx = hookTool.x + offsetX - hookTool.width / 2;
-                const hy = hookTool.y + offsetY - hookTool.height / 2;
-                ctx.fillStyle = '#7f8c8d'; 
-                ctx.strokeStyle = '#bdc3c7';
-                ctx.lineWidth = 1.5;
-                ctx.fillRect(hx, hy, hookTool.width, hookTool.height);
-                ctx.strokeRect(hx, hy, hookTool.width, hookTool.height);
-            }
-
-            // 7. CARRIED OBJECT ATTACHED TO HOOK
-            if (hookTool.carriedObject) {
-                const obj = hookTool.carriedObject;
-                const ox = obj.x + offsetX;
-                const oy = obj.y + offsetY;
-                ctx.fillStyle = obj.color;
-                ctx.fillRect(ox, oy, obj.width, obj.height);
-                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(ox, oy, obj.width, obj.height);
-                // Draw icon for barrel
-                if (obj.type === 'barrel') {
-                    ctx.font = '16px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = 'white';
-                    ctx.fillText(getItemIcon(obj.type), ox + obj.width / 2, oy + obj.height / 2);
-                }
-            }
-
-            // 8. CHARACTER RENDER PLAYER LAYER
-            const px = canvas.width / 2 - player.width / 2;
-            const py = canvas.height / 2 - player.height / 2;
-
-            ctx.fillStyle = player.color;
-            ctx.fillRect(px, py, player.width, player.height);
-            ctx.strokeStyle = '#5a3a1c';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(px, py, player.width, player.height);
-
-            if (player.inWater) {
-                ctx.fillStyle = 'rgba(43, 92, 143, 0.75)';
-                ctx.fillRect(px - 1, py + player.height / 2, player.width + 2, player.height / 2 + 1);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(canvas.width / 2, canvas.height / 2 + 6, 16 + Math.sin(Date.now() * 0.005) * 2, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-
-            // CHARGING RING RENDERING LOOPS
-            if (hookTool.state === "CHARGING") {
-                if (hookTool.chargeColor === "yellow" || (hookTool.chargeColor === "green" && Math.floor(hookTool.blinkTimer / 6) % 2 === 0)) {
-                    ctx.strokeStyle = hookTool.chargeColor === "yellow" ? '#f1c40f' : '#2ecc71';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(canvas.width / 2, canvas.height / 2, hookTool.ringRadius, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
-            }
-
-            ctx.fillStyle = player.eyeColor;
-            let eyeOffsetX = 0;
-            let eyeOffsetY = 0;
-            if (Math.abs(combinedMoveVector.x) > 0.2) eyeOffsetX = Math.sign(combinedMoveVector.x) * 2;
-            if (Math.abs(combinedMoveVector.y) > 0.2) eyeOffsetY = Math.sign(combinedMoveVector.y) * 2;
-            let waterEyeYShift = player.inWater ? 1 : 0;
-
-            ctx.fillRect(px + 4 + eyeOffsetX, py + 6 + eyeOffsetY + waterEyeYShift, 5, 5);
-            ctx.fillRect(px + 13 + eyeOffsetX, py + 6 + eyeOffsetY + waterEyeYShift, 5, 5);
-
-            ctx.fillStyle = player.pupilColor;
-            ctx.fillRect(px + 6 + eyeOffsetX, py + 8 + eyeOffsetY + waterEyeYShift, 2, 2);
-            ctx.fillRect(px + 15 + eyeOffsetX, py + 8 + eyeOffsetY + waterEyeYShift, 2, 2);
+            renderMinimapHUDOverlay();
         }
 
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
+        function drawHexagonalOutlineShape(cx, cy, radius) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) { let angle = (Math.PI / 3) * i; ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)); }
+            ctx.closePath();
         }
 
-        // Initialize game state
-        resetGame();
-        requestAnimationFrame(loop);
+        function renderMinimapHUDOverlay() {
+            const mSize = 100; const mx = viewWidth - mSize - 20; const my = 20;
+            ctx.fillStyle = 'rgba(10, 12, 17, 0.85)'; ctx.fillRect(mx, my, mSize, mSize);
+            ctx.strokeStyle = '#45f3ff'; ctx.lineWidth = 1; ctx.strokeRect(mx, my, mSize, mSize);
+            const rStep = mSize / totalGridRows; const cStep = mSize / totalGridCols;
+            for (let r = 0; r < totalGridRows; r++) {
+                for (let c = 0; c < totalGridCols; c++) {
+                    let state = hexMatrixGrid[r][c].state; if (state === 'wall') continue;
+                    ctx.fillStyle = state === 'dirt' ? '#6e4a2b' : '#2b1a0f';
+                    ctx.fillRect(mx + c * cStep, my + r * rStep, cStep + 0.2, rStep + 0.2);
+                }
+            }
+            let focalGridX = Math.floor(((-viewScrollOffsetX) / currentZoomFactor + viewWidth/2) / (hexRadius * 1.5 * totalGridCols) * mSize);
+            let focalGridY = Math.floor(((-viewScrollOffsetY) / currentZoomFactor + viewHeight/2) / (hexRadius * 1.732 * totalGridRows) * mSize);
+            ctx.fillStyle = '#ff2a2a'; ctx.fillRect(Math.max(mx, Math.min(mx + mSize - 4, mx + mSize/2 + focalGridX)), Math.max(my, Math.min(my + mSize - 4, my + mSize/2 + focalGridY)), 3, 3);
+        }
+
+        function getHexDistance(r1, c1, r2, c2) {
+            let x1 = c1, z1 = r1 - (c1 - (c1 & 1)) / 2; let x2 = c2, z2 = r2 - (c2 - (c2 & 1)) / 2;
+            return (Math.abs(x1 - x2) + Math.abs(-x1 - z1 + x2 + z2) + Math.abs(z1 - z2)) / 2;
+        }
+
+        function runMainSimulationLoop() {
+            updateSimulationStateEngine(); drawSimulationFrameContext(); requestAnimationFrame(runMainSimulationLoop);
+        }
+        window.onload = function() { initializeGameEngine(); };
     </script>
 </body>
 </html>
