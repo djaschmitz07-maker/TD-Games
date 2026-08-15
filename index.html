@@ -65,6 +65,7 @@
             <button id="tool-worker_nest" class="tool-btn" onclick="window.setSelectTool('worker_nest')">🥚 WORKER CELL (20)</button>
             <button id="tool-warrior_nest" class="tool-btn" onclick="window.setSelectTool('warrior_nest')">⚔️ WARRIOR CELL (30)</button>
             <button id="tool-food_cell" class="tool-btn" onclick="window.setSelectTool('food_cell')">🍗 FOOD CELL (10)</button>
+            <button id="tool-speed_cell" class="tool-btn" onclick="window.setSelectTool('speed_cell')">⚡ SPEED CELL (5)</button>
         </div>
         <div class="resource-display">🍂 FOOD: <span id="food-current-value">0</span> / <span id="food-max-value">300</span></div>
         <button id="btn-pause-toggle" class="pause-btn" onclick="window.togglePauseState()">PAUSE GAME</button>
@@ -74,7 +75,7 @@
             <button class="zoom-btn" onclick="window.adjustCameraZoom(0.15)">+</button>
             <button class="zoom-btn" onclick="window.adjustCameraZoom(-0.15)">−</button>
         </div>
-        <div id="instruction-tooltip">🧠 Intelligent targeting online! Builder ants handle egg-fetching immediately; foraging runs on non-overlapping reservation locks.</div>
+        <div id="instruction-tooltip">⚡ Speed cells online! Ants sprint twice as fast while trailing across neon speed corridors.</div>
         <canvas id="nestCanvas"></canvas>
         <div id="pause-screen-overlay"><div class="pause-text-banner">SIMULATION PAUSED</div></div>
     </div>
@@ -96,8 +97,8 @@
         const groupColorHexes = {1: '#00ff66', 2: '#0088ff', 3: '#ff9900', 4: '#cc00ff', 5: '#ff33aa', 6: '#00ffff'};
 
         let activeConstructionTool = null; let foodStockpile = 0; 
-        const toolCosts = { 'worker_nest': 20, 'warrior_nest': 30, 'food_cell': 10 };
-        const walkableStates = ['open', 'blueprint', 'worker_nest', 'warrior_nest', 'food_cell'];
+        const toolCosts = { 'worker_nest': 20, 'warrior_nest': 30, 'food_cell': 10, 'speed_cell': 5 };
+        const walkableStates = ['open', 'blueprint', 'worker_nest', 'warrior_nest', 'food_cell', 'speed_cell'];
         let looseFoodItems = [];
 
         // Generate Management Cards
@@ -137,7 +138,7 @@
                 activeConstructionTool = toolName; activelySelectedSquad = null;
                 for (let i = 1; i <= 6; i++) { document.getElementById('squad-card-' + i).classList.remove('active-squad'); }
             }
-            ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell'].forEach(t => {
+            ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell', 'tool-speed_cell'].forEach(t => {
                 const btn = document.getElementById(t);
                 if (btn) btn.classList.toggle('active-tool', t === 'tool-' + activeConstructionTool);
             });
@@ -147,7 +148,7 @@
             if (activelySelectedSquad === squadNum) { activelySelectedSquad = null; } 
             else {
                 activelySelectedSquad = squadNum; activeConstructionTool = null;
-                ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell'].forEach(t => {
+                ['tool-worker_nest', 'tool-warrior_nest', 'tool-food_cell', 'tool-speed_cell'].forEach(t => {
                     const btn = document.getElementById(t); if (btn) btn.classList.remove('active-tool');
                 });
             }
@@ -454,7 +455,6 @@
         function updateSimulationStateEngine() {
             if (isGamePaused) return;
 
-            // Instantly hatch eggs on replacement tasks if old ants are dead
             for (let r = 0; r < totalGridRows; r++) {
                 for (let c = 0; c < totalGridCols; c++) {
                     let cell = hexMatrixGrid[r][c];
@@ -554,8 +554,9 @@
                 if (ant.state === 'idle') {
                     let highPriorityTargets = [];
 
-                    // SMOOTH THINKING: Filter targets dynamically in real-time so ants never duplicate claims
-                    if (foodStockpile < calculateMaxFoodCapacity()) {
+                    // WARRIOR HOME DEFENSE SECURITY DETACHMENT ARCHITECTURE GATES
+                    // Warriors in the Royal Home Pool (Group 0) bypass foraging entirely to stay exclusively on security duty.
+                    if (foodStockpile < calculateMaxFoodCapacity() && (ant.type === 'worker' || ant.group > 0)) {
                         let maxFoodDist = (ant.group > 0 && activeRallyPoint) ? 3 : 999999;
                         let openFood = looseFoodItems.filter(f => !f.assignedAntId);
                         if (maxFoodDist === 3) openFood = openFood.filter(f => getHexDistance(ant.row, ant.col, f.row, f.col) <= 3);
@@ -634,14 +635,15 @@
                         }
                     }
 
-                    if (!globalWorkExists || (ant.group > 0 && groupRallyPoints[ant.group])) {
-                        let homeR = 22, homeC = 22;
-                        if (ant.group > 0 && groupRallyPoints[ant.group]) { homeR = groupRallyPoints[ant.group].row; homeC = groupRallyPoints[ant.group].col; }
-                        
-                        if (getHexDistance(ant.row, ant.col, homeR, homeC) > 2) {
-                            let homeRoute = computeHexGridPath(ant.row, ant.col, homeR, homeC);
-                            if (homeRoute && homeRoute.length > 0) { ant.path = homeRoute; ant.pathIndex = 0; ant.state = 'marching'; return; }
-                        }
+                    // Strict Home Fallback Verification For Royal Pool Security Sentinels
+                    let homeR = 22, homeC = 22;
+                    let shouldGoHome = !globalWorkExists || (ant.group > 0 && groupRallyPoints[ant.group]) || (ant.type === 'warrior' && ant.group === 0);
+                    
+                    if (ant.group > 0 && groupRallyPoints[ant.group]) { homeR = groupRallyPoints[ant.group].row; homeC = groupRallyPoints[ant.group].col; }
+                    
+                    if (shouldGoHome && getHexDistance(ant.row, ant.col, homeR, homeC) > 2) {
+                        let homeRoute = computeHexGridPath(ant.row, ant.col, homeR, homeC);
+                        if (homeRoute && homeRoute.length > 0) { ant.path = homeRoute; ant.pathIndex = 0; ant.state = 'marching'; return; }
                     }
                 }
 
@@ -669,7 +671,11 @@
                             }
                         });
 
-                        let updatedKinematicVelocity = ant.speed;
+                        // ⚡ DYNAMIC SPEED CELL INFRASTRUCTURE INTEGRATION
+                        let currentTileHexNode = hexMatrixGrid[ant.row][ant.col];
+                        let activeSpeedMultiplier = (currentTileHexNode && currentTileHexNode.state === 'speed_cell') ? 2.0 : 1.0;
+                        let updatedKinematicVelocity = ant.speed * activeSpeedMultiplier;
+                        
                         if (proximateNeighbors > 0) { updatedKinematicVelocity *= 0.75; }
 
                         if (distLeft > updatedKinematicVelocity) {
@@ -731,7 +737,6 @@
                         
                         ant.activeBuildTarget = null;
                         
-                        // INTELLECTUAL HANDOFF: The exact ant that completes the cell immediately fetches the egg!
                         if (bCell.state === 'worker_nest' || bCell.state === 'warrior_nest') {
                             bCell.assignedEggCarrierId = ant.id;
                             ant.targetEggCell = bCell;
@@ -841,12 +846,14 @@
                     else if (cell.state === 'worker_nest') ctx.fillStyle = '#6b4c31';
                     else if (cell.state === 'warrior_nest') ctx.fillStyle = '#592c28';
                     else if (cell.state === 'food_cell') ctx.fillStyle = '#1d3825';
+                    else if (cell.state === 'speed_cell') ctx.fillStyle = '#17273a'; // Neon sprint grid style
 
                     drawHexagonalOutlineShape(screenX, screenY, hexRadius * currentZoomFactor); ctx.fill();
 
                     if (cell.state === 'dirt') { ctx.strokeStyle = '#734e2e'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); }
                     else if (cell.state === 'blueprint') { ctx.strokeStyle = '#ffa500'; ctx.lineWidth = 0.6 * currentZoomFactor; ctx.stroke(); }
                     else if (cell.state === 'food_cell') { ctx.strokeStyle = '#274d33'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); }
+                    else if (cell.state === 'speed_cell') { ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 0.7 * currentZoomFactor; ctx.stroke(); }
                     else { ctx.strokeStyle = '#1a100a'; ctx.lineWidth = 0.4 * currentZoomFactor; ctx.stroke(); }
 
                     if (cell.state === 'dirt' && cell.isMysteryFood) {
@@ -855,9 +862,9 @@
                         ctx.fillText('?', screenX, screenY); ctx.restore();
                     }
 
-                    if (['worker_nest', 'warrior_nest', 'food_cell', 'blueprint'].includes(cell.state)) {
+                    if (['worker_nest', 'warrior_nest', 'food_cell', 'speed_cell', 'blueprint'].includes(cell.state)) {
                         let labelIcon = ''; let typeStr = cell.state === 'blueprint' ? cell.blueprintType : cell.state;
-                        if (typeStr === 'worker_nest') labelIcon = '🥚'; if (typeStr === 'warrior_nest') labelIcon = '⚔️'; if (typeStr === 'food_cell') labelIcon = '🍗';
+                        if (typeStr === 'worker_nest') labelIcon = '🥚'; if (typeStr === 'warrior_nest') labelIcon = '⚔️'; if (typeStr === 'food_cell') labelIcon = '🍗'; if (typeStr === 'speed_cell') labelIcon = '⚡';
                         
                         ctx.save(); ctx.fillStyle = cell.state === 'blueprint' ? 'rgba(255,255,255,0.3)' : '#ffffff';
                         ctx.font = `${Math.floor(10 * currentZoomFactor)}px Roboto`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -875,7 +882,7 @@
             looseFoodItems.forEach(food => {
                 let sx = viewWidth / 2 + (food.x - viewWidth / 2) * currentZoomFactor + viewScrollOffsetX;
                 let sy = viewHeight / 2 + (food.y - viewHeight / 2) * currentZoomFactor + viewScrollOffsetY;
-                if (sx < -10 || sx > viewWidth + 10 || sy < -10 || sy > viewWidth + 10) return;
+                if (sx < -10 || sx > viewWidth + 10 || sy < -10 || sy > viewHeight + 10) return;
                 ctx.save(); ctx.beginPath(); ctx.arc(sx, sy, 2.5 * currentZoomFactor, 0, Math.PI * 2);
                 ctx.fillStyle = '#ffbd59'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.5 * currentZoomFactor; ctx.stroke(); ctx.restore();
             });
